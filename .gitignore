@@ -1,0 +1,27 @@
+# Binaries
+main
+backend/main
+backend/backend
+bin/
+backend/bin/
+
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Temporary and test artifacts
+*.out
+*.test
+coverage.*
+
+# IDEs and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
