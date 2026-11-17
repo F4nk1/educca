@@ -70,11 +70,9 @@ if [[ "${1:-}" == "--apply" ]]; then
         exit 1
     fi
 
-    echo "==> Verificando base de datos '${DB_NAME}' en postgres://${DB_USER}@${DB_HOST}:${DB_PORT}..."
-    if ! PGPASSWORD="${DB_PASSWORD:-}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1; then
-        echo "==> Creando base de datos '${DB_NAME}'..."
-        PGPASSWORD="${DB_PASSWORD:-}" psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d postgres -c "CREATE DATABASE \"${DB_NAME}\";"
-    fi
+    echo "==> Recreando base de datos '${DB_NAME}' en postgres://${DB_USER}@${DB_HOST}:${DB_PORT}..."
+    PGPASSWORD="${DB_PASSWORD:-}" psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d postgres -c "DROP DATABASE IF EXISTS \"${DB_NAME}\";"
+    PGPASSWORD="${DB_PASSWORD:-}" psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d postgres -c "CREATE DATABASE \"${DB_NAME}\";"
 
     echo "==> Aplicando esquema en postgres://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}..."
     PGPASSWORD="${DB_PASSWORD:-}" psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -f "${OUTPUT_FILE}"
