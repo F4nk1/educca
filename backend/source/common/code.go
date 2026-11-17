@@ -8,6 +8,7 @@ const (
 	MISSING_FIELDS_ERROR  = 1002
 	NOT_FOUND_ERROR       = 1003
 	ALREADY_EXISTS_ERROR  = 1004
+	CONFLICT_ERROR        = 1005
 
 	// Auth errors
 	INVALID_CREDENTIALS_ERROR = 2001
@@ -24,6 +25,7 @@ var ErrorCodes = map[int]int{
 	MISSING_FIELDS_ERROR:      http.StatusBadRequest,
 	NOT_FOUND_ERROR:           http.StatusNotFound,
 	ALREADY_EXISTS_ERROR:      http.StatusConflict,
+	CONFLICT_ERROR:            http.StatusConflict,
 	INVALID_CREDENTIALS_ERROR: http.StatusUnauthorized,
 	ACCESS_DENIED_ERROR:       http.StatusForbidden,
 	MISSING_PERMISSION_ERROR:  http.StatusForbidden,
@@ -36,6 +38,7 @@ var ErrorMessages = map[int]string{
 	MISSING_FIELDS_ERROR:      "Required fields are missing",
 	NOT_FOUND_ERROR:           "Resource not found",
 	ALREADY_EXISTS_ERROR:      "Resource already exists",
+	CONFLICT_ERROR:            "Operation conflicts with current resource state",
 	INVALID_CREDENTIALS_ERROR: "Invalid credentials provided",
 	ACCESS_DENIED_ERROR:       "Authentication required",
 	MISSING_PERMISSION_ERROR:  "Insufficient permissions",

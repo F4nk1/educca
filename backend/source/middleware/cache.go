@@ -17,11 +17,15 @@ func Cache(c cache.Cache) mux.MiddlewareFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			if r.Method != http.MethodGet {
-				next.ServeHTTP(w, r)
+				recorder := cache.NewRecorder(w)
+				next.ServeHTTP(recorder, r)
+				if recorder.StatusCode >= http.StatusOK && recorder.StatusCode < http.StatusBadRequest {
+					c.Flush()
+				}
 				return
 			}
 
-			key := r.URL.Path
+			key := r.URL.RequestURI()
 			if claims, ok := ctx.Value(common.UserContextKey).(*model.Claims); ok {
 				key = fmt.Sprintf("%d:%s", claims.PersonaId, key)
 			}
@@ -35,7 +39,9 @@ func Cache(c cache.Cache) mux.MiddlewareFunc {
 
 			recorder := cache.NewRecorder(w)
 			next.ServeHTTP(recorder, r)
-			c.Set(key, recorder.Body, cache.DefaultTTL)
+			if recorder.StatusCode >= http.StatusOK && recorder.StatusCode < http.StatusMultipleChoices {
+				c.Set(key, recorder.Body, cache.DefaultTTL)
+			}
 		})
 	}
 }

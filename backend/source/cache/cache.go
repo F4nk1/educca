@@ -12,6 +12,7 @@ type Cache interface {
 	Get(key string) (interface{}, bool)
 	Set(key string, value interface{}, duration time.Duration)
 	Delete(key string)
+	Flush()
 }
 
 type SimpleCache struct {
@@ -34,4 +35,8 @@ func (c *SimpleCache) Set(key string, value interface{}, duration time.Duration)
 
 func (c *SimpleCache) Delete(key string) {
 	c.client.Delete(key)
+}
+
+func (c *SimpleCache) Flush() {
+	c.client.Flush()
 }
