@@ -23,7 +23,7 @@ func NewConfiguration() *Config {
 
 	dbPort := os.Getenv("DB_PORT")
 	if dbPort == "" {
-		dbPort = "3306"
+		dbPort = "5432"
 	}
 
 	return &Config{
@@ -31,7 +31,7 @@ func NewConfiguration() *Config {
 			Port: port,
 		},
 		Database: Database{
-			Driver:   "mysql",
+			Driver:   "pgx",
 			Name:     os.Getenv("DB_NAME"),
 			UserName: os.Getenv("DB_USER"),
 			Password: os.Getenv("DB_PASSWORD"),
@@ -43,10 +43,9 @@ func NewConfiguration() *Config {
 }
 
 func (c *Config) GetStringDBConnection() string {
-	return fmt.Sprintf("%s:%s@%s(%s:%s)/%s?parseTime=true&loc=Local&charset=utf8mb4",
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		c.Database.UserName,
 		c.Database.Password,
-		c.Database.Protocol,
 		c.Database.Host,
 		c.Database.Port,
 		c.Database.Name,
