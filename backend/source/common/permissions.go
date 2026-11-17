@@ -7,21 +7,21 @@ import (
 )
 
 const (
-	PermPersonasLeer        = "personas:leer"
-	PermPersonasEscribir    = "personas:escribir"
-	PermRolesGestionar      = "roles:gestionar"
-	PermOrganizacionesLeer  = "organizaciones:leer"
-	PermOrganizacionesEscr  = "organizaciones:escribir"
-	PermMetasLeer           = "metas:leer"
-	PermMetasEscribir       = "metas:escribir"
-	PermPromotoresLeer      = "promotores:leer"
-	PermPromotoresEscribir  = "promotores:escribir"
-	PermSesionesLeer        = "sesiones:leer"
-	PermSesionesCrear       = "sesiones:crear"
-	PermSesionesValidar     = "sesiones:validar"
-	PermAsistenciasReg      = "asistencias:registrar"
-	PermArchivosSubir       = "archivos:subir"
-	PermReportesExportar    = "reportes:exportar"
+	PermPersonasLeer       = "personas:leer"
+	PermPersonasEscribir   = "personas:escribir"
+	PermRolesGestionar     = "roles:gestionar"
+	PermOrganizacionesLeer = "organizaciones:leer"
+	PermOrganizacionesEscr = "organizaciones:escribir"
+	PermMetasLeer          = "metas:leer"
+	PermMetasEscribir      = "metas:escribir"
+	PermPromotoresLeer     = "promotores:leer"
+	PermPromotoresEscribir = "promotores:escribir"
+	PermSesionesLeer       = "sesiones:leer"
+	PermSesionesCrear      = "sesiones:crear"
+	PermSesionesValidar    = "sesiones:validar"
+	PermAsistenciasReg     = "asistencias:registrar"
+	PermArchivosSubir      = "archivos:subir"
+	PermReportesExportar   = "reportes:exportar"
 )
 
 var RoutePermissions = map[string]map[string]string{
