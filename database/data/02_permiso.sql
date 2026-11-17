@@ -18,5 +18,5 @@ INSERT INTO permiso (clave, descripcion) VALUES
     ('asistencias:registrar', 'Registrar asistencia y calificaciones'),
     ('archivos:subir', 'Adjuntar evidencias y actas a sesiones'),
     ('reportes:exportar', 'Exportar reportes consolidados EDUCCA')
-ON DUPLICATE KEY UPDATE
-    descripcion = VALUES(descripcion);
+ON CONFLICT (clave) DO UPDATE SET
+    descripcion = EXCLUDED.descripcion;

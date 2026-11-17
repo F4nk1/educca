@@ -2,10 +2,10 @@
 # ==============================================================================
 # Script: AmbiData.sh
 # Descripción: Concatena los DDLs de tablas y datos semilla en un único fichero
-#              consolidado (database/AmbiData.sql) y opcionalmente lo aplica a MariaDB.
+#              consolidado (database/AmbiData.sql) y opcionalmente lo aplica a PostgreSQL.
 # Uso:
 #   ./database/AmbiData.sh            -> Genera database/AmbiData.sql
-#   ./database/AmbiData.sh --apply    -> Genera y aplica a la base de datos usando variables de entorno
+#   ./database/AmbiData.sh --apply    -> Genera y aplica a la base de datos usando backend/.env
 # ==============================================================================
 
 set -euo pipefail
@@ -18,12 +18,11 @@ echo "==> Generando ${OUTPUT_FILE}..."
 cat > "${OUTPUT_FILE}" << 'EOF'
 -- ==============================================================================
 -- AMBIDATA DATABASE
--- Esquema consolidado de tablas y datos iniciales para MariaDB (EDUCCA).
+-- Esquema consolidado de tablas y datos iniciales para PostgreSQL (EDUCCA).
 -- Autogenerado mediante database/AmbiData.sh
 -- ==============================================================================
 
-SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
+BEGIN;
 
 EOF
 
@@ -46,12 +45,12 @@ for data_file in $(ls -1 "${SCRIPT_DIR}/data/"*.sql | sort); do
 done
 
 cat >> "${OUTPUT_FILE}" << 'EOF'
-SET FOREIGN_KEY_CHECKS = 1;
+COMMIT;
 EOF
 
 echo "==> Archivo ${OUTPUT_FILE} generado exitosamente."
 
-# Si se pasa el argumento --apply, ejecutar contra MariaDB
+# Si se pasa el argumento --apply, ejecutar contra PostgreSQL
 if [[ "${1:-}" == "--apply" ]]; then
     ENV_FILE="${SCRIPT_DIR}/../backend/.env"
     if [[ -f "${ENV_FILE}" ]]; then
@@ -62,21 +61,22 @@ if [[ "${1:-}" == "--apply" ]]; then
     fi
 
     DB_HOST="${DB_HOST:-localhost}"
-    DB_PORT="${DB_PORT:-3306}"
-    DB_USER="${DB_USER:-root}"
+    DB_PORT="${DB_PORT:-5432}"
+    DB_USER="${DB_USER:-postgres}"
     DB_NAME="${DB_NAME:-educca}"
 
-    DB_CLIENT=""
-    if command -v mariadb >/dev/null 2>&1; then
-        DB_CLIENT="mariadb"
-    elif command -v mysql >/dev/null 2>&1; then
-        DB_CLIENT="mysql"
-    else
-        echo "Error: no se encontró el cliente 'mariadb' ni 'mysql' en PATH." >&2
+    if ! command -v psql >/dev/null 2>&1; then
+        echo "Error: no se encontró el cliente 'psql' en PATH." >&2
         exit 1
     fi
 
-    echo "==> Aplicando esquema en mariadb://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}..."
-    MYSQL_PWD="${DB_PASSWORD:-}" "${DB_CLIENT}" -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" "${DB_NAME}" < "${OUTPUT_FILE}"
-    echo "==> Esquema aplicado correctamente en MariaDB."
+    echo "==> Verificando base de datos '${DB_NAME}' en postgres://${DB_USER}@${DB_HOST}:${DB_PORT}..."
+    if ! PGPASSWORD="${DB_PASSWORD:-}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1; then
+        echo "==> Creando base de datos '${DB_NAME}'..."
+        PGPASSWORD="${DB_PASSWORD:-}" psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d postgres -c "CREATE DATABASE \"${DB_NAME}\";"
+    fi
+
+    echo "==> Aplicando esquema en postgres://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}..."
+    PGPASSWORD="${DB_PASSWORD:-}" psql -v ON_ERROR_STOP=1 -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -f "${OUTPUT_FILE}"
+    echo "==> Esquema aplicado correctamente en PostgreSQL."
 fi

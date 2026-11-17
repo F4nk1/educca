@@ -7,7 +7,7 @@ SELECT r.id, p.id
 FROM rol r
 CROSS JOIN permiso p
 WHERE r.nombre = 'admin'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
@@ -22,7 +22,7 @@ JOIN permiso p ON p.clave IN (
     'reportes:exportar'
 )
 WHERE r.nombre = 'coordinador'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
@@ -33,7 +33,7 @@ JOIN permiso p ON p.clave IN (
     'asistencias:registrar', 'archivos:subir'
 )
 WHERE r.nombre = 'promotor'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
@@ -43,4 +43,4 @@ JOIN permiso p ON p.clave IN (
     'promotores:leer', 'sesiones:leer', 'reportes:exportar'
 )
 WHERE r.nombre = 'consulta'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;

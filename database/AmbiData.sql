@@ -1,11 +1,10 @@
 -- ==============================================================================
 -- AMBIDATA DATABASE
--- Esquema consolidado de tablas y datos iniciales para MariaDB (EDUCCA).
+-- Esquema consolidado de tablas y datos iniciales para PostgreSQL (EDUCCA).
 -- Autogenerado mediante database/AmbiData.sh
 -- ==============================================================================
 
-SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
+BEGIN;
 
 -- ================= TABLAS =================
 
@@ -15,7 +14,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS persona (
-    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id               BIGSERIAL PRIMARY KEY,
     dni              VARCHAR(12) NOT NULL UNIQUE,
     nombres          VARCHAR(100) NOT NULL,
     apellidos        VARCHAR(100) NOT NULL,
@@ -25,7 +24,7 @@ CREATE TABLE IF NOT EXISTS persona (
     email            VARCHAR(120) UNIQUE,
     password_hash    TEXT,
     activo           BOOLEAN NOT NULL DEFAULT TRUE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 
 -- ==============================================================================
@@ -34,10 +33,10 @@ CREATE TABLE IF NOT EXISTS persona (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS rol (
-    id          SMALLINT AUTO_INCREMENT PRIMARY KEY,
+    id          SMALLSERIAL PRIMARY KEY,
     nombre      VARCHAR(50) NOT NULL UNIQUE,
     descripcion VARCHAR(150) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 
 -- ==============================================================================
@@ -46,10 +45,10 @@ CREATE TABLE IF NOT EXISTS rol (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS permiso (
-    id          SMALLINT AUTO_INCREMENT PRIMARY KEY,
+    id          SMALLSERIAL PRIMARY KEY,
     clave       VARCHAR(60) NOT NULL UNIQUE,
     descripcion VARCHAR(150) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 
 -- ==============================================================================
@@ -58,12 +57,10 @@ CREATE TABLE IF NOT EXISTS permiso (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS rol_permiso (
-    rol_id     SMALLINT NOT NULL,
-    permiso_id SMALLINT NOT NULL,
-    PRIMARY KEY (rol_id, permiso_id),
-    CONSTRAINT fk_rol_permiso_rol FOREIGN KEY (rol_id) REFERENCES rol(id) ON DELETE CASCADE,
-    CONSTRAINT fk_rol_permiso_permiso FOREIGN KEY (permiso_id) REFERENCES permiso(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    rol_id     SMALLINT NOT NULL REFERENCES rol(id) ON DELETE CASCADE,
+    permiso_id SMALLINT NOT NULL REFERENCES permiso(id) ON DELETE CASCADE,
+    PRIMARY KEY (rol_id, permiso_id)
+);
 
 
 -- ==============================================================================
@@ -72,12 +69,10 @@ CREATE TABLE IF NOT EXISTS rol_permiso (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS persona_rol (
-    persona_id BIGINT NOT NULL,
-    rol_id     SMALLINT NOT NULL,
-    PRIMARY KEY (persona_id, rol_id),
-    CONSTRAINT fk_persona_rol_persona FOREIGN KEY (persona_id) REFERENCES persona(id) ON DELETE CASCADE,
-    CONSTRAINT fk_persona_rol_rol FOREIGN KEY (rol_id) REFERENCES rol(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    persona_id BIGINT NOT NULL REFERENCES persona(id) ON DELETE CASCADE,
+    rol_id     SMALLINT NOT NULL REFERENCES rol(id) ON DELETE CASCADE,
+    PRIMARY KEY (persona_id, rol_id)
+);
 
 
 -- ==============================================================================
@@ -86,7 +81,7 @@ CREATE TABLE IF NOT EXISTS persona_rol (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS organizacion (
-    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id                   BIGSERIAL PRIMARY KEY,
     nombre               VARCHAR(150) NOT NULL,
     tipo                 VARCHAR(30) NOT NULL CHECK (tipo IN (
                              'COLEGIO',
@@ -97,9 +92,8 @@ CREATE TABLE IF NOT EXISTS organizacion (
                          )),
     codigo_modular_o_ref VARCHAR(30),
     sector_ubicacion     VARCHAR(120) NOT NULL,
-    responsable_id       BIGINT,
-    CONSTRAINT fk_organizacion_responsable FOREIGN KEY (responsable_id) REFERENCES persona(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    responsable_id       BIGINT REFERENCES persona(id) ON DELETE SET NULL
+);
 
 
 -- ==============================================================================
@@ -108,16 +102,16 @@ CREATE TABLE IF NOT EXISTS organizacion (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS meta_anual (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id              BIGSERIAL PRIMARY KEY,
     anio            SMALLINT NOT NULL CHECK (anio >= 2024),
     actividad_minam VARCHAR(20) NOT NULL CHECK (actividad_minam IN (
                         'PAE', 'PAJ', 'PAC', 'EPEA', 'CAMPANA'
                     )),
     indicador       VARCHAR(120) NOT NULL,
     meta_programada INTEGER NOT NULL CHECK (meta_programada > 0),
-    presupuesto     DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    presupuesto     NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     UNIQUE (anio, actividad_minam, indicador)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
 
 
 -- ==============================================================================
@@ -126,21 +120,19 @@ CREATE TABLE IF NOT EXISTS meta_anual (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS promotor_periodo (
-    id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
-    persona_id         BIGINT NOT NULL,
+    id                 BIGSERIAL PRIMARY KEY,
+    persona_id         BIGINT NOT NULL REFERENCES persona(id) ON DELETE RESTRICT,
     anio               SMALLINT NOT NULL,
     tipo_promotor      VARCHAR(10) NOT NULL CHECK (tipo_promotor IN (
                            'PAE', 'PAJ', 'PAC', 'DOCENTE'
                        )),
-    organizacion_id    BIGINT,
+    organizacion_id    BIGINT REFERENCES organizacion(id) ON DELETE SET NULL,
     estado             VARCHAR(20) NOT NULL DEFAULT 'INSCRITO' CHECK (estado IN (
                            'INSCRITO', 'ACREDITADO', 'RETIRADO'
                        )),
     codigo_certificado VARCHAR(40) UNIQUE,
-    UNIQUE (persona_id, anio, tipo_promotor),
-    CONSTRAINT fk_promotor_periodo_persona FOREIGN KEY (persona_id) REFERENCES persona(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_promotor_periodo_organizacion FOREIGN KEY (organizacion_id) REFERENCES organizacion(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    UNIQUE (persona_id, anio, tipo_promotor)
+);
 
 
 -- ==============================================================================
@@ -149,21 +141,18 @@ CREATE TABLE IF NOT EXISTS promotor_periodo (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS sesion (
-    id               BIGINT AUTO_INCREMENT PRIMARY KEY,
-    meta_anual_id    BIGINT NOT NULL,
-    organizacion_id  BIGINT,
-    responsable_id   BIGINT NOT NULL,
+    id               BIGSERIAL PRIMARY KEY,
+    meta_anual_id    BIGINT NOT NULL REFERENCES meta_anual(id) ON DELETE RESTRICT,
+    organizacion_id  BIGINT REFERENCES organizacion(id) ON DELETE SET NULL,
+    responsable_id   BIGINT NOT NULL REFERENCES persona(id) ON DELETE RESTRICT,
     titulo           VARCHAR(150) NOT NULL,
     modalidad        VARCHAR(15) NOT NULL CHECK (modalidad IN ('PRESENCIAL', 'VIRTUAL')),
-    fecha_inicio     DATETIME NOT NULL,
+    fecha_inicio     TIMESTAMPTZ NOT NULL,
     duracion_minutos SMALLINT NOT NULL CHECK (duracion_minutos > 0),
     estado           VARCHAR(20) NOT NULL DEFAULT 'PROGRAMADA' CHECK (estado IN (
                          'PROGRAMADA', 'EJECUTADA', 'VALIDADA', 'CANCELADA'
-                     )),
-    CONSTRAINT fk_sesion_meta_anual FOREIGN KEY (meta_anual_id) REFERENCES meta_anual(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_sesion_organizacion FOREIGN KEY (organizacion_id) REFERENCES organizacion(id) ON DELETE SET NULL,
-    CONSTRAINT fk_sesion_responsable FOREIGN KEY (responsable_id) REFERENCES persona(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                     ))
+);
 
 
 -- ==============================================================================
@@ -172,16 +161,14 @@ CREATE TABLE IF NOT EXISTS sesion (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS asistencia (
-    sesion_id     BIGINT NOT NULL,
-    persona_id    BIGINT NOT NULL,
+    sesion_id     BIGINT NOT NULL REFERENCES sesion(id) ON DELETE CASCADE,
+    persona_id    BIGINT NOT NULL REFERENCES persona(id) ON DELETE RESTRICT,
     participacion VARCHAR(20) NOT NULL DEFAULT 'ASISTENTE' CHECK (participacion IN (
                       'ASISTENTE', 'VOLUNTARIO_REPLICA', 'PONENTE'
                   )),
-    calificacion  DECIMAL(4, 2),
-    PRIMARY KEY (sesion_id, persona_id),
-    CONSTRAINT fk_asistencia_sesion FOREIGN KEY (sesion_id) REFERENCES sesion(id) ON DELETE CASCADE,
-    CONSTRAINT fk_asistencia_persona FOREIGN KEY (persona_id) REFERENCES persona(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    calificacion  NUMERIC(4, 2),
+    PRIMARY KEY (sesion_id, persona_id)
+);
 
 
 -- ==============================================================================
@@ -190,14 +177,13 @@ CREATE TABLE IF NOT EXISTS asistencia (
 -- ==============================================================================
 
 CREATE TABLE IF NOT EXISTS archivo_sesion (
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    sesion_id   BIGINT NOT NULL,
+    id          BIGSERIAL PRIMARY KEY,
+    sesion_id   BIGINT NOT NULL REFERENCES sesion(id) ON DELETE CASCADE,
     tipo        VARCHAR(25) NOT NULL CHECK (tipo IN (
                     'FOTO_EVIDENCIA', 'PADRON_FIRMADO', 'ACTA', 'MATERIAL_DIDACTICO'
                 )),
-    url_archivo TEXT NOT NULL,
-    CONSTRAINT fk_archivo_sesion_sesion FOREIGN KEY (sesion_id) REFERENCES sesion(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    url_archivo TEXT NOT NULL
+);
 
 -- ================= DATOS SEMILLA =================
 
@@ -210,8 +196,8 @@ INSERT INTO rol (nombre, descripcion) VALUES
     ('coordinador', 'Coordinador municipal responsable de metas, sesiones y validaciones'),
     ('promotor', 'Promotor ambiental o docente acreditado para registrar actividades'),
     ('consulta', 'Usuario con acceso de solo lectura a reportes y sesiones')
-ON DUPLICATE KEY UPDATE
-    descripcion = VALUES(descripcion);
+ON CONFLICT (nombre) DO UPDATE SET
+    descripcion = EXCLUDED.descripcion;
 
 
 -- ==============================================================================
@@ -234,8 +220,8 @@ INSERT INTO permiso (clave, descripcion) VALUES
     ('asistencias:registrar', 'Registrar asistencia y calificaciones'),
     ('archivos:subir', 'Adjuntar evidencias y actas a sesiones'),
     ('reportes:exportar', 'Exportar reportes consolidados EDUCCA')
-ON DUPLICATE KEY UPDATE
-    descripcion = VALUES(descripcion);
+ON CONFLICT (clave) DO UPDATE SET
+    descripcion = EXCLUDED.descripcion;
 
 
 -- ==============================================================================
@@ -247,7 +233,7 @@ SELECT r.id, p.id
 FROM rol r
 CROSS JOIN permiso p
 WHERE r.nombre = 'admin'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
@@ -262,7 +248,7 @@ JOIN permiso p ON p.clave IN (
     'reportes:exportar'
 )
 WHERE r.nombre = 'coordinador'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
@@ -273,7 +259,7 @@ JOIN permiso p ON p.clave IN (
     'asistencias:registrar', 'archivos:subir'
 )
 WHERE r.nombre = 'promotor'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
@@ -283,7 +269,7 @@ JOIN permiso p ON p.clave IN (
     'promotores:leer', 'sesiones:leer', 'reportes:exportar'
 )
 WHERE r.nombre = 'consulta'
-ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 
 -- ==============================================================================
@@ -293,12 +279,12 @@ ON DUPLICATE KEY UPDATE rol_id = rol_permiso.rol_id;
 
 INSERT INTO persona (dni, nombres, apellidos, sexo, fecha_nacimiento, telefono, email, password_hash, activo) VALUES
     ('00000000', 'Admin', 'Principal', 'M', '1990-01-01', '+51999999999', 'admin@educca.gob.pe', '$2a$10$vI8aWBnW3fID.ZQ4/zo1G.q1lRps.9cGLcZEiGDMVr5yUP1KUOYTa', TRUE)
-ON DUPLICATE KEY UPDATE
-    nombres = VALUES(nombres),
-    apellidos = VALUES(apellidos),
-    telefono = VALUES(telefono),
-    email = VALUES(email),
-    activo = VALUES(activo);
+ON CONFLICT (dni) DO UPDATE SET
+    nombres = EXCLUDED.nombres,
+    apellidos = EXCLUDED.apellidos,
+    telefono = EXCLUDED.telefono,
+    email = EXCLUDED.email,
+    activo = EXCLUDED.activo;
 
 
 -- ==============================================================================
@@ -310,6 +296,6 @@ SELECT p.id, r.id
 FROM persona p
 JOIN rol r ON r.nombre = 'admin'
 WHERE p.dni = '00000000'
-ON DUPLICATE KEY UPDATE persona_id = persona_rol.persona_id;
+ON CONFLICT (persona_id, rol_id) DO NOTHING;
 
-SET FOREIGN_KEY_CHECKS = 1;
+COMMIT;
