@@ -35,7 +35,16 @@ for table_file in $(ls -1 "${SCRIPT_DIR}/tables/"*.sql | sort); do
     echo "" >> "${OUTPUT_FILE}"
 done
 
-# 2. Agregar datos iniciales (semillas)
+# 2. Agregar funciones almacenadas
+echo "-- ================= FUNCIONES =================" >> "${OUTPUT_FILE}"
+for fn_file in $(ls -1 "${SCRIPT_DIR}/functions/"*.sql | sort); do
+    echo "Agregando funcion: $(basename "${fn_file}")"
+    echo "" >> "${OUTPUT_FILE}"
+    cat "${fn_file}" >> "${OUTPUT_FILE}"
+    echo "" >> "${OUTPUT_FILE}"
+done
+
+# 3. Agregar datos iniciales (semillas)
 echo "-- ================= DATOS SEMILLA =================" >> "${OUTPUT_FILE}"
 for data_file in $(ls -1 "${SCRIPT_DIR}/data/"*.sql | sort); do
     echo "Agregando datos: $(basename "${data_file}")"
