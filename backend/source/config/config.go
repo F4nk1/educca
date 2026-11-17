@@ -12,32 +12,29 @@ type Config struct {
 	Database Database `json:"database"`
 }
 
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
 func NewConfiguration() *Config {
 	_ = godotenv.Load()
 	_ = godotenv.Load("backend/.env")
 
-	port := os.Getenv("SERVER_PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	dbPort := os.Getenv("DB_PORT")
-	if dbPort == "" {
-		dbPort = "5432"
-	}
-
 	return &Config{
 		Server: Server{
-			Port: port,
+			Port: getEnv("SERVER_PORT", "8080"),
 		},
 		Database: Database{
 			Driver:   "pgx",
-			Name:     os.Getenv("DB_NAME"),
-			UserName: os.Getenv("DB_USER"),
+			Name:     getEnv("DB_NAME", "educca"),
+			UserName: getEnv("DB_USER", "postgres"),
 			Password: os.Getenv("DB_PASSWORD"),
 			Protocol: "tcp",
-			Host:     os.Getenv("DB_HOST"),
-			Port:     dbPort,
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     getEnv("DB_PORT", "5432"),
 		},
 	}
 }
