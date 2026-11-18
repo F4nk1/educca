@@ -14,7 +14,12 @@ import (
 	"github.com/F4nk1/educca/backend/source/tracer"
 )
 
+const maxJSONBodyBytes = 1 << 20 // 1 MB
+
+var peruLocation = time.FixedZone("America/Lima", -5*3600)
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
 		tracer.Warnf(r.Context(), "Invalid JSON payload: %s", err)
 		common.WriteErrorResponse(w, common.INVALID_REQUEST_ERROR)
@@ -49,15 +54,18 @@ func parseOptionalAnio(w http.ResponseWriter, r *http.Request) (*int16, bool) {
 }
 
 func parseDate(raw string) (time.Time, error) {
-	if t, err := time.Parse("2006-01-02", raw); err == nil {
+	if t, err := time.ParseInLocation("2006-01-02", raw, peruLocation); err == nil {
 		return t, nil
 	}
 	return time.Parse(time.RFC3339, raw)
 }
 
 func parseDateTime(raw string) (time.Time, error) {
-	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05", "2006-01-02 15:04:05"} {
-		if t, err := time.Parse(layout, raw); err == nil {
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t, nil
+	}
+	for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02 15:04:05"} {
+		if t, err := time.ParseInLocation(layout, raw, peruLocation); err == nil {
 			return t, nil
 		}
 	}
@@ -73,12 +81,14 @@ func writeServiceError(w http.ResponseWriter, r *http.Request, err error, notFou
 		common.WriteErrorResponse(w, common.ALREADY_EXISTS_ERROR)
 	case errors.Is(err, service.ErrConflict):
 		common.WriteErrorMessage(w, common.CONFLICT_ERROR, err.Error())
+	case errors.Is(err, service.ErrUnprocessable):
+		common.WriteErrorMessage(w, common.UNPROCESSABLE_ERROR, err.Error())
 	case errors.Is(err, service.ErrInvalidInput):
 		common.WriteErrorResponse(w, common.INVALID_REQUEST_ERROR)
 	case errors.Is(err, service.ErrInvalidCredentials):
 		common.WriteErrorResponse(w, common.INVALID_CREDENTIALS_ERROR)
 	case errors.Is(err, service.ErrInactiveUser):
-		common.WriteErrorMessage(w, common.ACCESS_DENIED_ERROR, "Inactive user account")
+		common.WriteErrorResponse(w, common.ACCOUNT_INACTIVE_ERROR)
 	default:
 		tracer.Errorf(ctx, "Database/service error: %s", err)
 		common.WriteErrorResponse(w, common.DATABASE_ERROR)

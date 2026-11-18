@@ -16,6 +16,7 @@ type personaRequest struct {
 	FechaNacimiento string  `json:"fecha_nacimiento"`
 	Telefono        *string `json:"telefono"`
 	Email           *string `json:"email"`
+	Categoria       *string `json:"categoria"`
 	Password        string  `json:"password"`
 	Activo          *bool   `json:"activo"`
 }
@@ -47,8 +48,23 @@ func (s *Server) createPersona(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if code, msg := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo); code != 0 {
+	emailNorm := normalizeOptionalString(req.Email)
+	if emailNorm != nil {
+		lower := strings.ToLower(*emailNorm)
+		emailNorm = &lower
+	}
+	catNorm := normalizeOptionalString(req.Categoria)
+	if catNorm != nil {
+		upper := strings.ToUpper(*catNorm)
+		catNorm = &upper
+	}
+
+	if code, msg := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo, emailNorm, catNorm); code != 0 {
 		common.WriteErrorMessage(w, code, msg)
+		return
+	}
+	if req.Password != "" && len(req.Password) < 8 {
+		common.WriteErrorMessage(w, common.INVALID_REQUEST_ERROR, "password must be at least 8 characters long")
 		return
 	}
 	if strings.TrimSpace(req.FechaNacimiento) == "" {
@@ -73,7 +89,8 @@ func (s *Server) createPersona(w http.ResponseWriter, r *http.Request) {
 		Sexo:            req.Sexo,
 		FechaNacimiento: fechaNac,
 		Telefono:        normalizeOptionalString(req.Telefono),
-		Email:           normalizeOptionalString(req.Email),
+		Email:           emailNorm,
+		Categoria:       catNorm,
 		Activo:          activo,
 	}
 
@@ -94,7 +111,18 @@ func (s *Server) updatePersona(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if code, msg := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo); code != 0 {
+	emailNorm := normalizeOptionalString(req.Email)
+	if emailNorm != nil {
+		lower := strings.ToLower(*emailNorm)
+		emailNorm = &lower
+	}
+	catNorm := normalizeOptionalString(req.Categoria)
+	if catNorm != nil {
+		upper := strings.ToUpper(*catNorm)
+		catNorm = &upper
+	}
+
+	if code, msg := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo, emailNorm, catNorm); code != 0 {
 		common.WriteErrorMessage(w, code, msg)
 		return
 	}
@@ -116,7 +144,8 @@ func (s *Server) updatePersona(w http.ResponseWriter, r *http.Request) {
 		Sexo:            req.Sexo,
 		FechaNacimiento: fechaNac,
 		Telefono:        normalizeOptionalString(req.Telefono),
-		Email:           normalizeOptionalString(req.Email),
+		Email:           emailNorm,
+		Categoria:       catNorm,
 	}
 	if err := s.Service.UpdatePersona(r.Context(), p); err != nil {
 		writeServiceError(w, r, err, "Persona not found")
@@ -181,11 +210,60 @@ func (s *Server) setPersonaPassword(w http.ResponseWriter, r *http.Request) {
 		common.WriteErrorResponse(w, common.MISSING_FIELDS_ERROR)
 		return
 	}
+	if len(req.Password) < 8 {
+		common.WriteErrorMessage(w, common.INVALID_REQUEST_ERROR, "password must be at least 8 characters long")
+		return
+	}
 	if err := s.Service.SetPersonaPassword(r.Context(), id, req.Password); err != nil {
 		writeServiceError(w, r, err, "Persona not found")
 		return
 	}
 	common.WriteSuccessResponse(w, http.StatusOK, "Password updated")
+}
+
+func (s *Server) exportPersonaArco(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID[int64](w, r, "id", 64)
+	if !ok {
+		return
+	}
+
+	claims, ok := r.Context().Value(common.UserContextKey).(*model.Claims)
+	if !ok {
+		common.WriteErrorResponse(w, common.ACCESS_DENIED_ERROR)
+		return
+	}
+
+	if claims.PersonaId != id {
+		allowed, err := s.Service.HasPermission(r.Context(), claims.PersonaId, common.PermArcoGestionar)
+		if err != nil {
+			writeServiceError(w, r, err, "Persona not found")
+			return
+		}
+		if !allowed {
+			common.WriteErrorResponse(w, common.MISSING_PERMISSION_ERROR)
+			return
+		}
+	}
+
+	exportData, err := s.Service.ExportPersonaArco(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, r, err, "Persona not found")
+		return
+	}
+	common.WriteObjectResponse(w, http.StatusOK, exportData)
+}
+
+func (s *Server) anonimizarPersonaArco(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID[int64](w, r, "id", 64)
+	if !ok {
+		return
+	}
+
+	if err := s.Service.AnonimizarPersonaArco(r.Context(), id); err != nil {
+		writeServiceError(w, r, err, "Persona not found")
+		return
+	}
+	common.WriteSuccessResponse(w, http.StatusOK, "Datos personales anonimizados conforme a la Ley N.° 29733 (ARCO)")
 }
 
 func (s *Server) listPersonaRoles(w http.ResponseWriter, r *http.Request) {
