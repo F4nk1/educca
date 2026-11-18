@@ -7,4 +7,5 @@ type Database struct {
 	Password string `json:"-"`
 	Host     string `json:"host"`
 	Port     string `json:"port"`
+	SSLMode  string `json:"ssl_mode"`
 }
