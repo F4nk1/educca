@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/F4nk1/educca/backend/source/common"
 	"github.com/F4nk1/educca/backend/source/model"
@@ -46,8 +47,12 @@ func (s *Server) createPersona(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
+		return
+	}
+	if strings.TrimSpace(req.FechaNacimiento) == "" {
+		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, "fecha_nacimiento is required")
 		return
 	}
 	fechaNac, err := parseDate(req.FechaNacimiento)
@@ -62,13 +67,13 @@ func (s *Server) createPersona(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := &model.Persona{
-		Dni:             req.Dni,
-		Nombres:         req.Nombres,
-		Apellidos:       req.Apellidos,
+		Dni:             strings.TrimSpace(req.Dni),
+		Nombres:         strings.TrimSpace(req.Nombres),
+		Apellidos:       strings.TrimSpace(req.Apellidos),
 		Sexo:            req.Sexo,
 		FechaNacimiento: fechaNac,
-		Telefono:        req.Telefono,
-		Email:           req.Email,
+		Telefono:        normalizeOptionalString(req.Telefono),
+		Email:           normalizeOptionalString(req.Email),
 		Activo:          activo,
 	}
 
@@ -89,8 +94,12 @@ func (s *Server) updatePersona(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validatePersonaFields(req.Dni, req.Nombres, req.Apellidos, req.Sexo); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
+		return
+	}
+	if strings.TrimSpace(req.FechaNacimiento) == "" {
+		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, "fecha_nacimiento is required")
 		return
 	}
 	fechaNac, err := parseDate(req.FechaNacimiento)
@@ -101,13 +110,13 @@ func (s *Server) updatePersona(w http.ResponseWriter, r *http.Request) {
 
 	p := &model.Persona{
 		Id:              id,
-		Dni:             req.Dni,
-		Nombres:         req.Nombres,
-		Apellidos:       req.Apellidos,
+		Dni:             strings.TrimSpace(req.Dni),
+		Nombres:         strings.TrimSpace(req.Nombres),
+		Apellidos:       strings.TrimSpace(req.Apellidos),
 		Sexo:            req.Sexo,
 		FechaNacimiento: fechaNac,
-		Telefono:        req.Telefono,
-		Email:           req.Email,
+		Telefono:        normalizeOptionalString(req.Telefono),
+		Email:           normalizeOptionalString(req.Email),
 	}
 	if err := s.Service.UpdatePersona(r.Context(), p); err != nil {
 		writeServiceError(w, r, err, "Persona not found")
@@ -143,6 +152,25 @@ func (s *Server) setPersonaPassword(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
+	claims, ok := r.Context().Value(common.UserContextKey).(*model.Claims)
+	if !ok {
+		common.WriteErrorResponse(w, common.ACCESS_DENIED_ERROR)
+		return
+	}
+
+	if claims.PersonaId != id {
+		allowed, err := s.Service.HasPermission(r.Context(), claims.PersonaId, common.PermRolesGestionar)
+		if err != nil {
+			writeServiceError(w, r, err, "Persona not found")
+			return
+		}
+		if !allowed {
+			common.WriteErrorResponse(w, common.MISSING_PERMISSION_ERROR)
+			return
+		}
+	}
+
 	var req struct {
 		Password string `json:"password"`
 	}

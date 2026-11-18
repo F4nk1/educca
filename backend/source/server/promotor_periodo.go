@@ -38,8 +38,8 @@ func (s *Server) createPromotorPeriodo(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validatePromotorPeriodo(&req, false); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validatePromotorPeriodo(&req, false); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
 	id, err := s.Service.CreatePromotorPeriodo(r.Context(), &req)
@@ -59,8 +59,8 @@ func (s *Server) updatePromotorPeriodo(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validatePromotorPeriodo(&req, true); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validatePromotorPeriodo(&req, true); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
 	req.Id = id

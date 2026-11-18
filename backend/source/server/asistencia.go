@@ -30,8 +30,8 @@ func (s *Server) upsertAsistencia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.SesionId = sesionId
-	if err := validateAsistencia(&req); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateAsistencia(&req); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
 	if err := s.Service.UpsertAsistencia(r.Context(), &req); err != nil {

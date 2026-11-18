@@ -67,6 +67,7 @@ El archivo `database/data/04_persona.sql` incluye un usuario administrador inici
 - `GET, POST /api/v1/roles/{id}/permisos`
 - `DELETE /api/v1/roles/{id}/permisos/{permiso_id}`
 - `GET, POST /api/v1/permisos`
+- `DELETE /api/v1/permisos/{id}`
 
 ### Núcleo EDUCCA
 

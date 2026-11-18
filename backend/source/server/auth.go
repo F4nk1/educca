@@ -28,13 +28,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	persona, roles, permisos, err := s.Service.Login(r.Context(), strings.TrimSpace(req.Identificador), req.Password)
+	persona, err := s.Service.Login(r.Context(), strings.TrimSpace(req.Identificador), req.Password)
 	if err != nil {
 		writeServiceError(w, r, err, "Persona not found")
 		return
 	}
 
-	tokens, err := s.Auth.GenerateAuthToken(persona.Id, roles, permisos)
+	tokens, err := s.Auth.GenerateAuthToken(persona.Id)
 	if err != nil {
 		tracer.Errorf(r.Context(), "Failed to generate tokens for persona %d: %s", persona.Id, err)
 		common.WriteErrorResponse(w, common.INTERNAL_ERROR)
@@ -70,13 +70,7 @@ func (s *Server) refreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roles, permisos, err := s.Service.GetPersonaRolesPermisos(r.Context(), claims.PersonaId)
-	if err != nil {
-		writeServiceError(w, r, err, "Persona not found")
-		return
-	}
-
-	tokens, err := s.Auth.GenerateAuthToken(claims.PersonaId, roles, permisos)
+	tokens, err := s.Auth.GenerateAuthToken(claims.PersonaId)
 	if err != nil {
 		tracer.Errorf(r.Context(), "Failed to refresh tokens for persona %d: %s", claims.PersonaId, err)
 		common.WriteErrorResponse(w, common.INTERNAL_ERROR)
@@ -96,6 +90,10 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	persona, err := s.Service.GetPersona(r.Context(), claims.PersonaId)
 	if err != nil {
 		writeServiceError(w, r, err, "Persona not found")
+		return
+	}
+	if !persona.Activo {
+		common.WriteErrorMessage(w, common.ACCESS_DENIED_ERROR, "Inactive user account")
 		return
 	}
 

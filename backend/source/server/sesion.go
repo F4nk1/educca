@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/F4nk1/educca/backend/source/common"
 	"github.com/F4nk1/educca/backend/source/model"
@@ -64,8 +65,12 @@ func (s *Server) createSesion(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validateSesionFields(req.MetaAnualId, req.ResponsableId, req.Titulo, req.Modalidad, req.DuracionMinutos); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateSesionFields(req.MetaAnualId, req.ResponsableId, req.Titulo, req.Modalidad, req.DuracionMinutos); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
+		return
+	}
+	if strings.TrimSpace(req.FechaInicio) == "" {
+		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, "fecha_inicio is required")
 		return
 	}
 	fechaInicio, err := parseDateTime(req.FechaInicio)
@@ -78,7 +83,7 @@ func (s *Server) createSesion(w http.ResponseWriter, r *http.Request) {
 		MetaAnualId:     req.MetaAnualId,
 		OrganizacionId:  req.OrganizacionId,
 		ResponsableId:   req.ResponsableId,
-		Titulo:          req.Titulo,
+		Titulo:          strings.TrimSpace(req.Titulo),
 		Modalidad:       req.Modalidad,
 		FechaInicio:     fechaInicio,
 		DuracionMinutos: req.DuracionMinutos,
@@ -101,8 +106,12 @@ func (s *Server) updateSesion(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validateSesionFields(req.MetaAnualId, req.ResponsableId, req.Titulo, req.Modalidad, req.DuracionMinutos); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateSesionFields(req.MetaAnualId, req.ResponsableId, req.Titulo, req.Modalidad, req.DuracionMinutos); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
+		return
+	}
+	if strings.TrimSpace(req.FechaInicio) == "" {
+		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, "fecha_inicio is required")
 		return
 	}
 	fechaInicio, err := parseDateTime(req.FechaInicio)
@@ -116,7 +125,7 @@ func (s *Server) updateSesion(w http.ResponseWriter, r *http.Request) {
 		MetaAnualId:     req.MetaAnualId,
 		OrganizacionId:  req.OrganizacionId,
 		ResponsableId:   req.ResponsableId,
-		Titulo:          req.Titulo,
+		Titulo:          strings.TrimSpace(req.Titulo),
 		Modalidad:       req.Modalidad,
 		FechaInicio:     fechaInicio,
 		DuracionMinutos: req.DuracionMinutos,
@@ -139,26 +148,34 @@ func (s *Server) changeSesionEstado(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	if strings.TrimSpace(req.Estado) == "" {
+		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, "estado is required")
+		return
+	}
 	if !validEstadosSesion[req.Estado] {
 		common.WriteErrorMessage(w, common.INVALID_REQUEST_ERROR, "Invalid sesion estado")
 		return
 	}
 
+	claims, ok := r.Context().Value(common.UserContextKey).(*model.Claims)
+	if !ok {
+		common.WriteErrorResponse(w, common.ACCESS_DENIED_ERROR)
+		return
+	}
+
+	requiredPerm := common.PermSesionesCrear
 	if req.Estado == "VALIDADA" || req.Estado == "CANCELADA" {
-		claims, ok := r.Context().Value(common.UserContextKey).(*model.Claims)
-		if !ok {
-			common.WriteErrorResponse(w, common.ACCESS_DENIED_ERROR)
-			return
-		}
-		allowed, err := s.Service.HasPermission(r.Context(), claims.PersonaId, common.PermSesionesValidar)
-		if err != nil {
-			writeServiceError(w, r, err, "Persona not found")
-			return
-		}
-		if !allowed {
-			common.WriteErrorResponse(w, common.MISSING_PERMISSION_ERROR)
-			return
-		}
+		requiredPerm = common.PermSesionesValidar
+	}
+
+	allowed, err := s.Service.HasPermission(r.Context(), claims.PersonaId, requiredPerm)
+	if err != nil {
+		writeServiceError(w, r, err, "Persona not found")
+		return
+	}
+	if !allowed {
+		common.WriteErrorResponse(w, common.MISSING_PERMISSION_ERROR)
+		return
 	}
 
 	if err := s.Service.ChangeSesionEstado(r.Context(), id, req.Estado); err != nil {

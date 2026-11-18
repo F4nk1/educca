@@ -38,8 +38,8 @@ func (s *Server) createMetaAnual(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validateMetaAnual(&req); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateMetaAnual(&req); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
 	id, err := s.Service.CreateMetaAnual(r.Context(), &req)
@@ -59,8 +59,8 @@ func (s *Server) updateMetaAnual(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validateMetaAnual(&req); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateMetaAnual(&req); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
 	req.Id = id

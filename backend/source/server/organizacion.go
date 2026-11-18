@@ -34,8 +34,8 @@ func (s *Server) createOrganizacion(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validateOrganizacion(&req); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateOrganizacion(&req); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
 	id, err := s.Service.CreateOrganizacion(r.Context(), &req)
@@ -55,8 +55,8 @@ func (s *Server) updateOrganizacion(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := validateOrganizacion(&req); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateOrganizacion(&req); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
 	req.Id = id

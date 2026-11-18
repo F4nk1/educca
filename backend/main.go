@@ -24,7 +24,7 @@ func main() {
 	defer conn.Close()
 
 	svc := service.NewService(conn)
-	srv := server.NewServer(svc)
+	srv := server.NewServer(svc, cfg)
 
 	serverHost := fmt.Sprintf(":%s", cfg.Server.Port)
 	tracer.Infof(ctx, "Starting server on %s", serverHost)

@@ -106,6 +106,18 @@ func (s *Server) createPermiso(w http.ResponseWriter, r *http.Request) {
 	common.WriteObjectResponse(w, http.StatusCreated, map[string]int16{"id": id})
 }
 
+func (s *Server) deletePermiso(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID[int16](w, r, "id", 16)
+	if !ok {
+		return
+	}
+	if err := s.Service.DeletePermiso(r.Context(), id); err != nil {
+		writeServiceError(w, r, err, "Permission not found")
+		return
+	}
+	common.WriteSuccessResponse(w, http.StatusOK, "Permission deleted")
+}
+
 func (s *Server) listRolePermisos(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseID[int16](w, r, "id", 16)
 	if !ok {

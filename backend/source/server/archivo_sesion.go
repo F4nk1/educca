@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/F4nk1/educca/backend/source/common"
 	"github.com/F4nk1/educca/backend/source/model"
@@ -30,10 +31,11 @@ func (s *Server) createArchivoSesion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.SesionId = sesionId
-	if err := validateArchivoSesion(&req); err != nil {
-		common.WriteErrorMessage(w, common.MISSING_FIELDS_ERROR, err.Error())
+	if code, msg := validateArchivoSesion(&req); code != 0 {
+		common.WriteErrorMessage(w, code, msg)
 		return
 	}
+	req.UrlArchivo = strings.TrimSpace(req.UrlArchivo)
 	id, err := s.Service.CreateArchivoSesion(r.Context(), &req)
 	if err != nil {
 		writeServiceError(w, r, err, "Sesion not found")
