@@ -10,7 +10,7 @@ import (
 	"github.com/F4nk1/educca/backend/source/model"
 )
 
-func (s *service) Login(ctx context.Context, identificador, password string) (*model.Persona, []string, []string, error) {
+func (s *service) Login(ctx context.Context, identificador, password string) (*model.Persona, error) {
 	var p model.Persona
 	var passwordHash string
 
@@ -21,25 +21,20 @@ func (s *service) Login(ctx context.Context, identificador, password string) (*m
 	).Scan(&p.Id, &p.Dni, &p.Nombres, &p.Apellidos, &p.Email, &passwordHash, &p.Activo)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, nil, ErrInvalidCredentials
+			return nil, ErrInvalidCredentials
 		}
-		return nil, nil, nil, classifyError(err, false)
+		return nil, classifyError(err, false)
 	}
 
 	if !p.Activo {
-		return nil, nil, nil, ErrInactiveUser
+		return nil, ErrInactiveUser
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
-		return nil, nil, nil, ErrInvalidCredentials
+		return nil, ErrInvalidCredentials
 	}
 
-	roles, permisos, err := s.GetPersonaRolesPermisos(ctx, p.Id)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return &p, roles, permisos, nil
+	return &p, nil
 }
 
 func (s *service) GetPersonaRolesPermisos(ctx context.Context, personaId int64) ([]string, []string, error) {

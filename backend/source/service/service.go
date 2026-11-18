@@ -9,7 +9,7 @@ import (
 
 type Service interface {
 	// Auth & RBAC
-	Login(ctx context.Context, identificador, password string) (*model.Persona, []string, []string, error)
+	Login(ctx context.Context, identificador, password string) (*model.Persona, error)
 	GetPersonaRolesPermisos(ctx context.Context, personaId int64) ([]string, []string, error)
 	HasPermission(ctx context.Context, personaId int64, permiso string) (bool, error)
 
@@ -32,6 +32,7 @@ type Service interface {
 	DeleteRole(ctx context.Context, id int16) error
 	ListPermisos(ctx context.Context) ([]model.Permiso, error)
 	CreatePermiso(ctx context.Context, p *model.Permiso) (int16, error)
+	DeletePermiso(ctx context.Context, id int16) error
 	ListRolePermisos(ctx context.Context, rolId int16) ([]model.Permiso, error)
 	AssignRolePermiso(ctx context.Context, rolId, permisoId int16) error
 	RemoveRolePermiso(ctx context.Context, rolId, permisoId int16) error

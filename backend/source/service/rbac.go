@@ -63,6 +63,10 @@ func (s *service) CreatePermiso(ctx context.Context, p *model.Permiso) (int16, e
 	return id, nil
 }
 
+func (s *service) DeletePermiso(ctx context.Context, id int16) error {
+	return s.execBool(ctx, true, `SELECT fn_permiso_eliminar($1)`, id)
+}
+
 func (s *service) ListRolePermisos(ctx context.Context, rolId int16) ([]model.Permiso, error) {
 	return queryRows(ctx, s.conn.Db, `SELECT id, clave, descripcion FROM fn_rol_listar_permisos($1)`,
 		func(rows *sql.Rows) (model.Permiso, error) { return scanPermiso(rows) }, rolId)

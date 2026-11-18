@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -17,6 +16,18 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInactiveUser       = errors.New("user is inactive")
 )
+
+type BusinessError struct {
+	Message string
+}
+
+func (e *BusinessError) Error() string {
+	return e.Message
+}
+
+func (e *BusinessError) Is(target error) bool {
+	return target == ErrConflict
+}
 
 func classifyError(err error, isDelete bool) error {
 	if err == nil {
@@ -38,7 +49,9 @@ func classifyError(err error, isDelete bool) error {
 		case "23514", "22001":
 			return ErrInvalidInput
 		case "P0001":
-			return fmt.Errorf("%w: %s", ErrConflict, pgErr.Message)
+			return &BusinessError{Message: pgErr.Message}
+		case "P0002":
+			return ErrNotFound
 		}
 	}
 	return err
