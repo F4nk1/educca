@@ -35,44 +35,12 @@ func Warnf(ctx context.Context, format string, args ...interface{}) {
 	WithContext(ctx).Warnf(format, args...)
 }
 
-func Fatalf(ctx context.Context, format string, args ...interface{}) {
-	WithContext(ctx).Fatalf(format, args...)
-}
-
-func Panicf(ctx context.Context, format string, args ...interface{}) {
-	WithContext(ctx).Panicf(format, args...)
-}
-
-func DPanicf(ctx context.Context, format string, args ...interface{}) {
-	WithContext(ctx).DPanicf(format, args...)
-}
-
-func Error(ctx context.Context, args ...interface{}) {
-	WithContext(ctx).Error(args...)
-}
-
-func Info(ctx context.Context, args ...interface{}) {
-	WithContext(ctx).Info(args...)
-}
-
 func Debug(ctx context.Context, args ...interface{}) {
 	WithContext(ctx).Debug(args...)
 }
 
-func Warn(ctx context.Context, args ...interface{}) {
-	WithContext(ctx).Warn(args...)
-}
-
 func Fatal(ctx context.Context, args ...interface{}) {
 	WithContext(ctx).Fatal(args...)
-}
-
-func Panic(ctx context.Context, args ...interface{}) {
-	WithContext(ctx).Panic(args...)
-}
-
-func DPanic(ctx context.Context, args ...interface{}) {
-	WithContext(ctx).DPanic(args...)
 }
 
 func WithContext(ctx context.Context) *zap.SugaredLogger {
@@ -83,10 +51,7 @@ func WithContext(ctx context.Context) *zap.SugaredLogger {
 	if requestId, ok := ctx.Value(RequestIdKey).(string); ok {
 		l = l.With("requestId", requestId)
 	}
-	switch userId := ctx.Value(UserIdKey).(type) {
-	case int64:
-		l = l.With("userId", userId)
-	case int:
+	if userId, ok := ctx.Value(UserIdKey).(int64); ok {
 		l = l.With("userId", userId)
 	}
 	return l

@@ -1,6 +1,7 @@
 package config
 
 type Server struct {
-	Host string `json:"host"`
-	Port string `json:"port"`
+	Port          string `json:"port"`
+	AccessSecret  string `json:"-"`
+	RefreshSecret string `json:"-"`
 }

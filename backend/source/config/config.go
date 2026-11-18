@@ -25,14 +25,15 @@ func NewConfiguration() *Config {
 
 	return &Config{
 		Server: Server{
-			Port: getEnv("SERVER_PORT", "8080"),
+			Port:          getEnv("SERVER_PORT", "8080"),
+			AccessSecret:  getEnv("ACCESS_SECRET", "default_dev_access_secret_educca"),
+			RefreshSecret: getEnv("REFRESH_SECRET", "default_dev_refresh_secret_educca"),
 		},
 		Database: Database{
 			Driver:   "pgx",
 			Name:     getEnv("DB_NAME", "educca"),
 			UserName: getEnv("DB_USER", "postgres"),
 			Password: os.Getenv("DB_PASSWORD"),
-			Protocol: "tcp",
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
 		},
