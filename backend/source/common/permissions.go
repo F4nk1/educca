@@ -36,9 +36,6 @@ var RoutePermissions = map[string]map[string]string{
 	"/api/v1/personas/{id}/activo": {
 		http.MethodPatch: PermPersonasEscribir,
 	},
-	"/api/v1/personas/{id}/password": {
-		http.MethodPatch: PermPersonasEscribir,
-	},
 	"/api/v1/personas/{id}/roles": {
 		http.MethodGet:  PermPersonasLeer,
 		http.MethodPost: PermRolesGestionar,
@@ -65,6 +62,9 @@ var RoutePermissions = map[string]map[string]string{
 	"/api/v1/permisos": {
 		http.MethodGet:  PermRolesGestionar,
 		http.MethodPost: PermRolesGestionar,
+	},
+	"/api/v1/permisos/{id}": {
+		http.MethodDelete: PermRolesGestionar,
 	},
 	"/api/v1/organizaciones": {
 		http.MethodGet:  PermOrganizacionesLeer,
@@ -101,9 +101,6 @@ var RoutePermissions = map[string]map[string]string{
 		http.MethodGet:    PermSesionesLeer,
 		http.MethodPut:    PermSesionesCrear,
 		http.MethodDelete: PermSesionesCrear,
-	},
-	"/api/v1/sesiones/{id}/estado": {
-		http.MethodPatch: PermSesionesCrear,
 	},
 	"/api/v1/sesiones/{id}/asistencias": {
 		http.MethodGet:  PermSesionesLeer,

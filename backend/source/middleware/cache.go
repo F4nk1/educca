@@ -17,7 +17,7 @@ func Cache(c cache.Cache) mux.MiddlewareFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			if r.Method != http.MethodGet {
-				recorder := cache.NewRecorder(w)
+				recorder := cache.NewStatusRecorder(w)
 				next.ServeHTTP(recorder, r)
 				if recorder.StatusCode >= http.StatusOK && recorder.StatusCode < http.StatusBadRequest {
 					c.Flush()
@@ -31,16 +31,24 @@ func Cache(c cache.Cache) mux.MiddlewareFunc {
 			}
 
 			if cached, found := c.Get(key); found {
-				tracer.Debugf(ctx, "Cached response served for %s", key)
-				w.Header().Set("Content-Type", common.ContentTypeJSON)
-				w.Write(cached.([]byte))
-				return
+				if entry, ok := cached.(cache.CachedResponse); ok {
+					tracer.Debugf(ctx, "Cached response served for %s", key)
+					w.Header().Set("Content-Type", common.ContentTypeJSON)
+					w.WriteHeader(entry.StatusCode)
+					_, _ = w.Write(entry.Body)
+					return
+				}
 			}
 
 			recorder := cache.NewRecorder(w)
 			next.ServeHTTP(recorder, r)
 			if recorder.StatusCode >= http.StatusOK && recorder.StatusCode < http.StatusMultipleChoices {
-				c.Set(key, recorder.Body, cache.DefaultTTL)
+				bodyCopy := make([]byte, len(recorder.Body))
+				copy(bodyCopy, recorder.Body)
+				c.Set(key, cache.CachedResponse{
+					StatusCode: recorder.StatusCode,
+					Body:       bodyCopy,
+				}, cache.DefaultTTL)
 			}
 		})
 	}
