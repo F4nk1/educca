@@ -17,11 +17,16 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _dniController = TextEditingController();
   final _nameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _birthDateController = TextEditingController(text: '2000-01-01');
+  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  String _selectedSexo = 'M';
   PromoterCategory _selectedCategory = PromoterCategory.juvenil;
   bool _isAdultConfirmed = true;
   bool _privacyConsentAccepted = false;
@@ -36,7 +41,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    _dniController.dispose();
     _nameController.dispose();
+    _lastNameController.dispose();
+    _birthDateController.dispose();
+    _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -45,6 +54,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool get _isMinorEscolarBlocked {
     return _selectedCategory == PromoterCategory.escolar && !_isAdultConfirmed;
+  }
+
+  Future<void> _selectBirthDate() async {
+    final now = DateTime.now();
+    final adultMax = DateTime(now.year - 18, now.month, now.day);
+    DateTime initial = DateTime(2000, 1, 1);
+    if (_birthDateController.text.isNotEmpty) {
+      try {
+        final parsed = DateTime.parse(_birthDateController.text);
+        if (parsed.isBefore(adultMax)) {
+          initial = parsed;
+        }
+      } catch (_) {}
+    }
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1930),
+      lastDate: now,
+      helpText: 'FECHA DE NACIMIENTO (LPDP >= 18 AÑOS)',
+      cancelText: 'CANCELAR',
+      confirmText: 'ACEPTAR',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AndeanColors.brand,
+              onPrimary: Colors.white,
+              onSurface: AndeanColors.ink,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final formatted =
+          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      setState(() {
+        _birthDateController.text = formatted;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -73,13 +126,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final auth = context.read<AuthProvider>();
+    final nombresInput = _nameController.text.trim();
+    final apellidosInput = _lastNameController.text.trim();
+
+    String nom = nombresInput;
+    String ape = apellidosInput;
+    if (ape.isEmpty) {
+      final parts = nom.split(RegExp(r'\s+'));
+      if (parts.length > 1) {
+        nom = parts[0];
+        ape = parts.sublist(1).join(' ');
+      } else {
+        ape = nom;
+      }
+    }
+    final fullName = ape.isNotEmpty && ape != nom ? '$nom $ape' : nom;
+
     final success = await auth.registerPromoter(
-      fullName: _nameController.text.trim(),
+      fullName: fullName,
       email: _emailController.text.trim(),
       password: _passwordController.text,
       promoterCategory: _selectedCategory.backendCode,
       isAdult: _selectedCategory == PromoterCategory.escolar ? _isAdultConfirmed : true,
       privacyConsentAccepted: _privacyConsentAccepted,
+      dni: _dniController.text.trim(),
+      nombres: nom,
+      apellidos: ape,
+      sexo: _selectedSexo,
+      fechaNacimiento: _birthDateController.text.trim(),
+      telefono: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
     );
 
     if (!mounted) return;
@@ -91,7 +166,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: AndeanColors.brand,
         ),
       );
-      Navigator.of(context).pop();
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     } else if (auth.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -224,9 +301,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Campo 1: Nombre y Apellidos
+                              // Campo 1: Documento de Identidad (DNI / CE)
                               Text(
-                                'Nombre y Apellidos',
+                                'Documento de Identidad (DNI / CE)',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AndeanColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                key: const Key('dniField'),
+                                controller: _dniController,
+                                keyboardType: TextInputType.text,
+                                textInputAction: TextInputAction.next,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: AndeanColors.ink,
+                                ),
+                                decoration: andeanInputDecoration(
+                                  hintText: '8 dígitos (DNI) o Carné Extranjería',
+                                  prefixIcon: const Icon(
+                                    Icons.badge_outlined,
+                                    size: 20,
+                                    color: AndeanColors.forest,
+                                  ),
+                                  isCompact: isCompact,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Ingresa tu DNI o documento';
+                                  }
+                                  final trimmed = value.trim();
+                                  if (trimmed.length < 8 || trimmed.length > 15) {
+                                    return 'Debe tener entre 8 y 15 caracteres';
+                                  }
+                                  if (!RegExp(r'^[0-9A-Za-z-]+$').hasMatch(trimmed)) {
+                                    return 'Solo números o letras sin espacios';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: isCompact ? 10 : 14),
+
+                              // Campo 2: Nombres
+                              Text(
+                                'Nombres',
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -243,7 +364,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   color: AndeanColors.ink,
                                 ),
                                 decoration: andeanInputDecoration(
-                                  hintText: 'Tu nombre completo',
+                                  hintText: 'Tus nombres',
                                   prefixIcon: SvgPicture.asset(
                                     'assets/images/icono_nombre.svg',
                                     width: 20,
@@ -253,14 +374,154 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
-                                    return 'Ingresa tu nombre completo';
+                                    return 'Ingresa tus nombres';
                                   }
                                   return null;
                                 },
                               ),
                               SizedBox(height: isCompact ? 10 : 14),
 
-                              // Campo 2: Correo Electrónico
+                              // Campo 3: Apellidos
+                              Text(
+                                'Apellidos',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AndeanColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                key: const Key('lastNameField'),
+                                controller: _lastNameController,
+                                textInputAction: TextInputAction.next,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: AndeanColors.ink,
+                                ),
+                                decoration: andeanInputDecoration(
+                                  hintText: 'Tus apellidos',
+                                  prefixIcon: SvgPicture.asset(
+                                    'assets/images/icono_nombre.svg',
+                                    width: 20,
+                                    height: 20,
+                                  ),
+                                  isCompact: isCompact,
+                                ),
+                                validator: (value) {
+                                  if ((value == null || value.trim().isEmpty) &&
+                                      !_nameController.text.trim().contains(' ')) {
+                                    return 'Ingresa tus apellidos';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: isCompact ? 10 : 14),
+
+                              // Campo 4: Sexo
+                              Text(
+                                'Sexo',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AndeanColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              _buildSexoSelector(),
+                              SizedBox(height: isCompact ? 10 : 14),
+
+                              // Campo 5: Fecha de Nacimiento
+                              Text(
+                                'Fecha de Nacimiento',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AndeanColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                key: const Key('birthDateField'),
+                                controller: _birthDateController,
+                                readOnly: true,
+                                onTap: _selectBirthDate,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: AndeanColors.ink,
+                                ),
+                                decoration: andeanInputDecoration(
+                                  hintText: 'AAAA-MM-DD (Mayor de 18 años)',
+                                  prefixIcon: const Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 20,
+                                    color: AndeanColors.forest,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: const Icon(
+                                      Icons.edit_calendar_outlined,
+                                      size: 20,
+                                      color: AndeanColors.forest,
+                                    ),
+                                    onPressed: _selectBirthDate,
+                                  ),
+                                  isCompact: isCompact,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Selecciona tu fecha de nacimiento';
+                                  }
+                                  try {
+                                    final date = DateTime.parse(value.trim());
+                                    final now = DateTime.now();
+                                    int age = now.year - date.year;
+                                    if (now.month < date.month ||
+                                        (now.month == date.month && now.day < date.day)) {
+                                      age--;
+                                    }
+                                    if (age < 18) {
+                                      return 'Debes tener al menos 18 años (LPDP)';
+                                    }
+                                  } catch (_) {
+                                    return 'Formato de fecha no válido (AAAA-MM-DD)';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: isCompact ? 10 : 14),
+
+                              // Campo 6: Teléfono / Celular (Opcional)
+                              Text(
+                                'Teléfono / Celular (Opcional)',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AndeanColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                key: const Key('phoneField'),
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: AndeanColors.ink,
+                                ),
+                                decoration: andeanInputDecoration(
+                                  hintText: 'Ej. 984123456',
+                                  prefixIcon: const Icon(
+                                    Icons.phone_outlined,
+                                    size: 20,
+                                    color: AndeanColors.forest,
+                                  ),
+                                  isCompact: isCompact,
+                                ),
+                              ),
+                              SizedBox(height: isCompact ? 10 : 14),
+
+                              // Campo 7: Correo Electrónico
                               Text(
                                 'Correo Electrónico',
                                 style: GoogleFonts.inter(
@@ -301,7 +562,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               SizedBox(height: isCompact ? 10 : 14),
 
-                              // Campo 3: Contraseña
+                              // Campo 8: Contraseña
                               Text(
                                 'Contraseña',
                                 style: GoogleFonts.inter(
@@ -321,7 +582,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   color: AndeanColors.ink,
                                 ),
                                 decoration: andeanInputDecoration(
-                                  hintText: 'Mínimo 6 caracteres',
+                                  hintText: 'Mínimo 8 caracteres',
                                   prefixIcon: SvgPicture.asset(
                                     'assets/images/icono_clave.svg',
                                     width: 20,
@@ -351,15 +612,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   if (value == null || value.isEmpty) {
                                     return 'Ingresa una contraseña';
                                   }
-                                  if (value.length < 6) {
-                                    return 'Debe tener al menos 6 caracteres';
+                                  if (value.length < 8) {
+                                    return 'Debe tener al menos 8 caracteres';
                                   }
                                   return null;
                                 },
                               ),
                               SizedBox(height: isCompact ? 10 : 14),
 
-                              // Campo 4: Confirmar Contraseña
+                              // Campo 9: Confirmar Contraseña
                               Text(
                                 'Confirmar Contraseña',
                                 style: GoogleFonts.inter(
@@ -660,6 +921,73 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Selector andino de sexo (Masculino M / Femenino F)
+  Widget _buildSexoSelector() {
+    return Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            key: const Key('sexoM'),
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(() => _selectedSexo = 'M'),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              height: 40,
+              decoration: BoxDecoration(
+                color: _selectedSexo == 'M' ? AndeanColors.chipSelectedBg : AndeanColors.surface,
+                border: Border.all(
+                  color: _selectedSexo == 'M' ? AndeanColors.brand : AndeanColors.line,
+                  width: _selectedSexo == 'M' ? 1.5 : 1,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  'Masculino (M)',
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: _selectedSexo == 'M' ? FontWeight.w600 : FontWeight.normal,
+                    color: _selectedSexo == 'M' ? AndeanColors.forest : AndeanColors.muted,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: InkWell(
+            key: const Key('sexoF'),
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(() => _selectedSexo = 'F'),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              height: 40,
+              decoration: BoxDecoration(
+                color: _selectedSexo == 'F' ? AndeanColors.chipSelectedBg : AndeanColors.surface,
+                border: Border.all(
+                  color: _selectedSexo == 'F' ? AndeanColors.brand : AndeanColors.line,
+                  width: _selectedSexo == 'F' ? 1.5 : 1,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  'Femenino (F)',
+                  style: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    fontWeight: _selectedSexo == 'F' ? FontWeight.w600 : FontWeight.normal,
+                    color: _selectedSexo == 'F' ? AndeanColors.forest : AndeanColors.muted,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

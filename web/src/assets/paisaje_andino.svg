@@ -1,0 +1,48 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="360" height="140" viewBox="0 0 360 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Paisaje andino · ilustración vectorial editable" clip-path="url(#clip0_0_521)">
+<path id="Vector" d="M360 0H0V140H360V0Z" fill="url(#paint0_linear_0_521)"/>
+<path id="Vector_2" opacity="0.64" d="M-8 89L55 48L90 67L165 21L207 46L274 5L332 47L370 34V140H-8V89Z" fill="#687260"/>
+<path id="Vector_3" opacity="0.9" d="M-8 98L79 55L111 77L181 41L234 64L300 23L374 79V140H-8V98Z" fill="url(#paint1_linear_0_521)"/>
+<path id="Vector_4" d="M-8 116C33.3333 90.6667 74 82.3333 114 91C154 99.6667 193.333 94.6667 232 76C270.667 57.3333 316.667 63.3333 370 94V140H-8V116Z" fill="#5E744B"/>
+<path id="Vector_5" d="M-8 138C48 107.333 96.6667 98.6667 138 112C179.333 125.333 220.667 121 262 99C303.333 77 339.333 84.6667 370 122V150H-8V138Z" fill="url(#paint2_linear_0_521)"/>
+<path id="Vector_6" opacity="0.52" d="M-8 119C27.3333 107.667 63 105 99 111C135 117 170.333 113.667 205 101C239.667 88.3333 289.667 94.6667 355 120M-8 129C31.3333 120.333 71.6667 118 113 122C154.333 126 193.333 123.333 230 114C266.667 104.667 313.333 109.667 370 129M0 137C53.3333 128.333 100.333 127 141 133C181.667 139 224.667 136 270 124C315.333 112 347 116 365 136" stroke-width="1.5" stroke="#C0BD81"/>
+<g id="Group">
+<g id="Vector_7">
+<path d="M42 75V112ZM68 67V107ZM93 78V111ZM291 83V107Z" fill="black"/>
+<path d="M42 75V112M68 67V107M93 78V111M291 83V107" stroke-width="2" stroke="#223F2D"/>
+</g>
+<g id="Vector_8">
+<path d="M42 80L36 73ZM42 89L49 79ZM68 74L61 68ZM68 88L76 76ZM93 86L88 78ZM93 95L101 86ZM299 89L292 80Z" fill="black"/>
+<path d="M42 80L36 73M42 89L49 79M68 74L61 68M68 88L76 76M93 86L88 78M93 95L101 86M299 89L292 80" stroke-width="2" stroke="#223F2D"/>
+</g>
+</g>
+<g id="Group_2">
+<path id="Vector_9" d="M41 81C47.6274 81 53 75.6274 53 69C53 62.3726 47.6274 57 41 57C34.3726 57 29 62.3726 29 69C29 75.6274 34.3726 81 41 81Z" fill="#2B4F37"/>
+<path id="Vector_10" d="M68 75C73.5228 75 78 70.5228 78 65C78 59.4772 73.5228 55 68 55C62.4772 55 58 59.4772 58 65C58 70.5228 62.4772 75 68 75Z" fill="#2B4F37"/>
+<path id="Vector_11" d="M91 83C95.4183 83 99 79.4183 99 75C99 70.5817 95.4183 67 91 67C86.5817 67 83 70.5817 83 75C83 79.4183 86.5817 83 91 83Z" fill="#2B4F37"/>
+<path id="Vector_12" d="M292 88C296.971 88 301 83.9706 301 79C301 74.0294 296.971 70 292 70C287.029 70 283 74.0294 283 79C283 83.9706 287.029 88 292 88Z" fill="#2B4F37"/>
+</g>
+<g id="Vector_13" opacity="0.16">
+<path d="M0 37C43.3333 31.6667 80 32.3333 110 39ZM192 35C242.667 29 290 29 334 35Z" fill="black"/>
+<path d="M0 37C43.3333 31.6667 80 32.3333 110 39M192 35C242.667 29 290 29 334 35" stroke-width="10" stroke-linecap="round" stroke="#F0D5A6"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_521" x1="0" y1="0" x2="52.8678" y2="194.208" gradientUnits="userSpaceOnUse">
+<stop stop-color="#DFB982"/>
+<stop offset="0.52" stop-color="#9D9B81"/>
+<stop offset="1" stop-color="#507060"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_521" x1="-8" y1="23" x2="46.2529" y2="219.815" gradientUnits="userSpaceOnUse">
+<stop stop-color="#657659"/>
+<stop offset="1" stop-color="#314D3B"/>
+</linearGradient>
+<linearGradient id="paint2_linear_0_521" x1="-8" y1="86.764" x2="8.85087" y2="198.684" gradientUnits="userSpaceOnUse">
+<stop stop-color="#81935B"/>
+<stop offset="1" stop-color="#294A36"/>
+</linearGradient>
+<clipPath id="clip0_0_521">
+<rect width="360" height="140" fill="white"/>
+</clipPath>
+</defs>
+</svg>

@@ -144,6 +144,14 @@ class ApiEduccaRepository implements EduccaRepository {
         nom = parts[0];
         ape = parts.sublist(1).join(' ');
       }
+    } else if (ape.isEmpty || ape == '-') {
+      if (nom.contains(' ')) {
+        final parts = nom.split(RegExp(r'\s+'));
+        nom = parts[0];
+        ape = parts.sublist(1).join(' ');
+      } else {
+        ape = nom;
+      }
     }
 
     // Mapear categoría a los valores válidos en PostgreSQL (CHECK: 'COMERCIANTE', 'RECICLADOR', 'PAC', 'PAJ')
@@ -159,7 +167,7 @@ class ApiEduccaRepository implements EduccaRepository {
     return await apiClient.post(
       '/register',
       body: {
-        'dni': (dni != null && dni.trim().isNotEmpty) ? dni.trim() : '00000000',
+        'dni': dni?.trim() ?? '',
         'nombres': nom,
         'apellidos': ape,
         'sexo': (sexo != null && (sexo.toUpperCase() == 'M' || sexo.toUpperCase() == 'F')) ? sexo.toUpperCase() : 'M',

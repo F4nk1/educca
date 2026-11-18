@@ -184,7 +184,14 @@ class AuthProvider extends ChangeNotifier {
         },
         onFailure: (error, statusCode) {
           if (statusCode == 409) {
-            _errorMessage = 'El correo electrónico ya se encuentra registrado.';
+            final lower = error.toLowerCase();
+            if (lower.contains('email') || lower.contains('correo')) {
+              _errorMessage = 'El correo electrónico ya se encuentra registrado.';
+            } else if (lower.contains('dni') || lower.contains('documento')) {
+              _errorMessage = 'El documento de identidad (DNI) ya se encuentra registrado.';
+            } else {
+              _errorMessage = 'El DNI o correo electrónico ya se encuentra registrado en el sistema.';
+            }
           } else {
             _errorMessage = error;
           }

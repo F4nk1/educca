@@ -10,6 +10,7 @@ import 'package:sistema_capacitaciones/models/course.dart';
 import 'package:sistema_capacitaciones/models/course_session.dart';
 import 'package:sistema_capacitaciones/models/location_capture.dart';
 import 'package:sistema_capacitaciones/models/promoter_user.dart';
+import 'package:sistema_capacitaciones/providers/auth_provider.dart';
 import 'package:sistema_capacitaciones/repositories/api_educca_repository.dart';
 
 class FakeIntegrationStorage extends SessionStorage {
@@ -227,6 +228,210 @@ void main() {
 
       await storage.clearSession();
       expect(await storage.getRefreshToken(), isNull);
+    });
+
+    test('6. ApiEduccaRepository.registerPromoter formats payload correctly according to Go contract', () async {
+      Map<String, dynamic>? capturedBody;
+      final mockClient = MockClient((request) async {
+        if (request.url.path.endsWith('/register') && request.method == 'POST') {
+          capturedBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({
+              'id': 105,
+              'rol': 'capacitando',
+              'categoria': capturedBody!['categoria'],
+              'consentimiento_version': capturedBody!['consentimiento_version'],
+              'access_token': 'jwt_access_new',
+              'refresh_token': 'jwt_refresh_new',
+              'expires_in': 3600,
+              'token_type': 'Bearer',
+            }),
+            201,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final config = AppConfig(initialBaseUrl: 'http://test:8080/api/v1');
+      final storage = FakeIntegrationStorage();
+      final apiClient = ApiClient(config: config, sessionStorage: storage, httpClient: mockClient);
+      final repo = ApiEduccaRepository(apiClient: apiClient);
+
+      final res = await repo.registerPromoter(
+        fullName: 'Inti Quispe Mama',
+        email: 'inti.quispe@ejemplo.pe',
+        password: 'passwordSeguro2026',
+        promoterCategory: 'PAJ',
+        isAdult: true,
+        privacyConsentAccepted: true,
+        dni: '71234567',
+        nombres: 'Inti',
+        apellidos: 'Quispe Mama',
+        sexo: 'M',
+        fechaNacimiento: '1999-05-15',
+        telefono: '984112233',
+      );
+
+      expect(res.isSuccess, isTrue);
+      expect(capturedBody, isNotNull);
+      expect(capturedBody!['dni'], '71234567');
+      expect(capturedBody!['dni'], isNot('00000000'));
+      expect(capturedBody!['nombres'], 'Inti');
+      expect(capturedBody!['apellidos'], 'Quispe Mama');
+      expect(capturedBody!['sexo'], 'M');
+      expect(capturedBody!['fecha_nacimiento'], '1999-05-15');
+      expect(capturedBody!['email'], 'inti.quispe@ejemplo.pe');
+      expect(capturedBody!['password'], 'passwordSeguro2026');
+      expect(capturedBody!['categoria'], 'PAJ');
+      expect(capturedBody!['consentimiento_aceptado'], isTrue);
+      expect(capturedBody!['consentimiento_version'], 'v1.0-2026');
+      expect(capturedBody!['telefono'], '984112233');
+    });
+
+    test('7. AuthProvider.registerPromoter differentiates 409 conflict, 422 LPDP minor and 400 validation', () async {
+      final mockClient = MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final dni = body['dni']?.toString() ?? '';
+        final email = body['email']?.toString() ?? '';
+        final pwd = body['password']?.toString() ?? '';
+        final birthDate = body['fecha_nacimiento']?.toString() ?? '';
+
+        if (dni == '00000000') {
+          return http.Response(
+            jsonEncode({
+              'httpStatusCode': 409,
+              'errorCode': 1004,
+              'message': 'Resource already exists',
+            }),
+            409,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+
+        if (email == 'duplicado@correo.com') {
+          return http.Response(
+            jsonEncode({
+              'httpStatusCode': 409,
+              'errorCode': 1004,
+              'message': 'email already registered',
+            }),
+            409,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+
+        if (pwd.length < 8) {
+          return http.Response(
+            jsonEncode({
+              'httpStatusCode': 400,
+              'errorCode': 1002,
+              'message': 'password must be at least 8 characters long',
+            }),
+            400,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+
+        if (birthDate.startsWith('2015')) {
+          return http.Response(
+            jsonEncode({
+              'httpStatusCode': 422,
+              'errorCode': 1005,
+              'message': 'El registro directo en plataforma requiere mayoría de edad (>= 18 años) conforme a la LPDP',
+            }),
+            422,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+
+        return http.Response(
+          jsonEncode({
+            'id': 200,
+            'rol': 'capacitando',
+            'categoria': 'PAJ',
+            'access_token': 'new_token',
+          }),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final config = AppConfig(initialBaseUrl: 'http://test:8080/api/v1');
+      final storage = FakeIntegrationStorage();
+      final apiClient = ApiClient(config: config, sessionStorage: storage, httpClient: mockClient);
+      final repo = ApiEduccaRepository(apiClient: apiClient);
+      final auth = AuthProvider(apiClient: apiClient, sessionStorage: storage, repository: repo);
+
+      // Caso A: DNI duplicado que arrojaba 409 Resource already exists
+      final resDniDup = await auth.registerPromoter(
+        fullName: 'Sayri Admin Colision',
+        email: 'nuevo@correo.com',
+        password: 'password123',
+        promoterCategory: 'PAJ',
+        isAdult: true,
+        privacyConsentAccepted: true,
+        dni: '00000000',
+        fechaNacimiento: '2000-01-01',
+      );
+      expect(resDniDup, isFalse);
+      expect(auth.errorMessage, 'El DNI o correo electrónico ya se encuentra registrado en el sistema.');
+
+      // Caso B: Correo explícitamente duplicado
+      final resEmailDup = await auth.registerPromoter(
+        fullName: 'Sayri Dup Email',
+        email: 'duplicado@correo.com',
+        password: 'password123',
+        promoterCategory: 'PAJ',
+        isAdult: true,
+        privacyConsentAccepted: true,
+        dni: '78945612',
+        fechaNacimiento: '2000-01-01',
+      );
+      expect(resEmailDup, isFalse);
+      expect(auth.errorMessage, 'El correo electrónico ya se encuentra registrado.');
+
+      // Caso C: Contraseña demasiado corta (< 8)
+      final resShortPwd = await auth.registerPromoter(
+        fullName: 'Sayri Short Pwd',
+        email: 'sayri@short.com',
+        password: '123',
+        promoterCategory: 'PAJ',
+        isAdult: true,
+        privacyConsentAccepted: true,
+        dni: '78945613',
+        fechaNacimiento: '2000-01-01',
+      );
+      expect(resShortPwd, isFalse);
+      expect(auth.errorMessage, 'password must be at least 8 characters long');
+
+      // Caso D: Menor de edad LPDP (422)
+      final resMinor = await auth.registerPromoter(
+        fullName: 'Menor Edad',
+        email: 'menor@lpdp.com',
+        password: 'password123',
+        promoterCategory: 'PAJ',
+        isAdult: false,
+        privacyConsentAccepted: true,
+        dni: '78945614',
+        fechaNacimiento: '2015-01-01',
+      );
+      expect(resMinor, isFalse);
+      expect(auth.errorMessage, contains('mayoría de edad (>= 18 años) conforme a la LPDP'));
+
+      // Caso E: Éxito total
+      final resOk = await auth.registerPromoter(
+        fullName: 'Sayri Valido',
+        email: 'sayri.valido@educca.gob.pe',
+        password: 'passwordSeguro2026',
+        promoterCategory: 'PAJ',
+        isAdult: true,
+        privacyConsentAccepted: true,
+        dni: '78945615',
+        fechaNacimiento: '1995-10-10',
+      );
+      expect(resOk, isTrue);
+      expect(auth.errorMessage, isNull);
     });
   });
 }

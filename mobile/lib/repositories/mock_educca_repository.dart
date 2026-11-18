@@ -84,10 +84,24 @@ class MockEduccaRepository implements EduccaRepository {
   }) async {
     await Future.delayed(const Duration(milliseconds: 700));
 
+    if (dni != null && (dni.contains('00000000') || dni.toLowerCase().contains('duplicado'))) {
+      return Result.failure(
+        'El documento de identidad (DNI) ya se encuentra registrado.',
+        statusCode: 409,
+      );
+    }
+
     if (email.contains('existe@')) {
       return Result.failure(
         'El correo electrónico ya se encuentra registrado en el sistema.',
         statusCode: 409,
+      );
+    }
+
+    if (password.length < 8) {
+      return Result.failure(
+        'La contraseña debe tener al menos 8 caracteres.',
+        statusCode: 400,
       );
     }
 

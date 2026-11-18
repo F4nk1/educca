@@ -119,4 +119,67 @@ void main() {
     final button = tester.widget<ElevatedButton>(find.byKey(const Key('registerButton')));
     expect(button.onPressed, isNull);
   });
+
+  testWidgets('RegisterScreen renders all Go contract fields and allows successful registration', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+    final storage = MockSessionStorage();
+    final apiClient = ApiClient(config: AppConfig(), sessionStorage: storage);
+    final mockRepo = MockEduccaRepository();
+    final authProvider = AuthProvider(
+      apiClient: apiClient,
+      sessionStorage: storage,
+      repository: mockRepo,
+    );
+
+    await tester.pumpWidget(createWidgetUnderTest(authProvider));
+
+    // Verify all contract fields exist
+    expect(find.byKey(const Key('dniField')), findsOneWidget);
+    expect(find.byKey(const Key('nameField')), findsOneWidget);
+    expect(find.byKey(const Key('lastNameField')), findsOneWidget);
+    expect(find.byKey(const Key('sexoM')), findsOneWidget);
+    expect(find.byKey(const Key('sexoF')), findsOneWidget);
+    expect(find.byKey(const Key('birthDateField')), findsOneWidget);
+    expect(find.byKey(const Key('phoneField')), findsOneWidget);
+    expect(find.byKey(const Key('emailField')), findsOneWidget);
+    expect(find.byKey(const Key('passwordField')), findsOneWidget);
+    expect(find.byKey(const Key('confirmPasswordField')), findsOneWidget);
+
+    // Fill the complete registration form
+    await tester.enterText(find.byKey(const Key('dniField')), '74561238');
+    await tester.enterText(find.byKey(const Key('nameField')), 'Sayri');
+    await tester.enterText(find.byKey(const Key('lastNameField')), 'Huaman');
+    await tester.tap(find.byKey(const Key('sexoM')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('phoneField')), '984123456');
+    await tester.enterText(find.byKey(const Key('emailField')), 'sayri.huaman@educca.gob.pe');
+    await tester.enterText(find.byKey(const Key('passwordField')), 'seguridad2026');
+    await tester.enterText(find.byKey(const Key('confirmPasswordField')), 'seguridad2026');
+
+    // Accept consent
+    final consentFinder = find.byKey(const Key('consentCheckbox'));
+    await tester.ensureVisible(consentFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(consentFinder);
+    await tester.pumpAndSettle();
+
+    // Register button should now be enabled
+    final registerBtnFinder = find.byKey(const Key('registerButton'));
+    await tester.ensureVisible(registerBtnFinder);
+    await tester.pumpAndSettle();
+    final registerBtn = tester.widget<ElevatedButton>(registerBtnFinder);
+    expect(registerBtn.onPressed, isNotNull);
+
+    // Tap register button
+    await tester.tap(registerBtnFinder);
+    await tester.pump(); // Start async call
+    await tester.pump(const Duration(milliseconds: 1000)); // Complete mock delay
+    await tester.pumpAndSettle();
+
+    // Verify success snackbar
+    expect(find.text('¡Cuenta de promotor creada con éxito! Ahora puedes iniciar sesión.'), findsOneWidget);
+  });
 }
