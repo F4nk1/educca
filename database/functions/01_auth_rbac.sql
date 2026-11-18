@@ -17,8 +17,9 @@ STABLE
 AS $$
     SELECT p.id, p.dni, p.nombres, p.apellidos, p.email, p.password_hash, p.activo
     FROM persona p
-    WHERE (p.dni = p_identificador OR p.email = p_identificador)
+    WHERE (p.dni = p_identificador OR LOWER(p.email) = LOWER(p_identificador))
       AND p.password_hash IS NOT NULL
+      AND p.anonimizado = FALSE
     LIMIT 1;
 $$;
 
@@ -60,6 +61,7 @@ AS $$
         JOIN permiso pm ON pm.id = rp.permiso_id
         WHERE p.id = p_persona_id
           AND p.activo = TRUE
+          AND p.anonimizado = FALSE
           AND pm.clave = p_clave
     );
 $$;

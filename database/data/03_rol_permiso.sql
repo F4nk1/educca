@@ -17,9 +17,10 @@ JOIN permiso p ON p.clave IN (
     'organizaciones:leer', 'organizaciones:escribir',
     'metas:leer', 'metas:escribir',
     'promotores:leer', 'promotores:escribir',
-    'sesiones:leer', 'sesiones:crear', 'sesiones:validar',
-    'asistencias:registrar', 'archivos:subir',
-    'reportes:exportar'
+    'sesiones:leer', 'sesiones:crear', 'sesiones:validar', 'sesiones:qr',
+    'inscripciones:leer', 'inscripciones:gestionar',
+    'asistencias:registrar', 'asistencias:checkin_qr',
+    'archivos:subir', 'reportes:exportar', 'arco:gestionar'
 )
 WHERE r.nombre = 'coordinador'
 ON CONFLICT (rol_id, permiso_id) DO NOTHING;
@@ -28,18 +29,29 @@ INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
 FROM rol r
 JOIN permiso p ON p.clave IN (
-    'personas:leer', 'organizaciones:leer', 'metas:leer', 'promotores:leer',
-    'sesiones:leer', 'sesiones:crear',
+    'organizaciones:leer', 'metas:leer', 'promotores:leer',
+    'sesiones:leer', 'sesiones:qr',
+    'inscripciones:leer',
     'asistencias:registrar', 'archivos:subir'
 )
-WHERE r.nombre = 'promotor'
+WHERE r.nombre = 'capacitador'
 ON CONFLICT (rol_id, permiso_id) DO NOTHING;
 
 INSERT INTO rol_permiso (rol_id, permiso_id)
 SELECT r.id, p.id
 FROM rol r
 JOIN permiso p ON p.clave IN (
-    'personas:leer', 'organizaciones:leer', 'metas:leer',
+    'organizaciones:leer', 'sesiones:leer',
+    'inscripciones:gestionar', 'asistencias:checkin_qr'
+)
+WHERE r.nombre = 'capacitando'
+ON CONFLICT (rol_id, permiso_id) DO NOTHING;
+
+INSERT INTO rol_permiso (rol_id, permiso_id)
+SELECT r.id, p.id
+FROM rol r
+JOIN permiso p ON p.clave IN (
+    'organizaciones:leer', 'metas:leer',
     'promotores:leer', 'sesiones:leer', 'reportes:exportar'
 )
 WHERE r.nombre = 'consulta'
