@@ -60,16 +60,33 @@ AS $$
     INSERT INTO permiso (clave, descripcion) VALUES (p_clave, p_descripcion) RETURNING id;
 $$;
 
+CREATE OR REPLACE FUNCTION fn_permiso_eliminar(p_id SMALLINT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM permiso WHERE id = p_id;
+    RETURN FOUND;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION fn_rol_listar_permisos(p_rol_id SMALLINT)
 RETURNS TABLE (id SMALLINT, clave VARCHAR, descripcion VARCHAR)
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM rol r WHERE r.id = p_rol_id) THEN
+        RAISE EXCEPTION 'Rol no encontrado' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
     SELECT pm.id, pm.clave, pm.descripcion
     FROM rol_permiso rp
     JOIN permiso pm ON pm.id = rp.permiso_id
     WHERE rp.rol_id = p_rol_id
     ORDER BY pm.id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_rol_asignar_permiso(p_rol_id SMALLINT, p_permiso_id SMALLINT)

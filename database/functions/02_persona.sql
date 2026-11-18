@@ -57,7 +57,7 @@ RETURNS BIGINT
 LANGUAGE sql
 AS $$
     INSERT INTO persona (dni, nombres, apellidos, sexo, fecha_nacimiento, telefono, email, password_hash, activo)
-    VALUES (p_dni, p_nombres, p_apellidos, p_sexo, p_fecha_nacimiento, p_telefono, p_email, p_password_hash, p_activo)
+    VALUES (p_dni, p_nombres, p_apellidos, p_sexo, p_fecha_nacimiento, NULLIF(BTRIM(p_telefono), ''), NULLIF(BTRIM(p_email), ''), p_password_hash, p_activo)
     RETURNING id;
 $$;
 
@@ -81,8 +81,8 @@ BEGIN
         apellidos = p_apellidos,
         sexo = p_sexo,
         fecha_nacimiento = p_fecha_nacimiento,
-        telefono = p_telefono,
-        email = p_email
+        telefono = NULLIF(BTRIM(p_telefono), ''),
+        email = NULLIF(BTRIM(p_email), '')
     WHERE id = p_id;
     RETURN FOUND;
 END;
@@ -110,14 +110,21 @@ $$;
 
 CREATE OR REPLACE FUNCTION fn_persona_listar_roles(p_persona_id BIGINT)
 RETURNS TABLE (id SMALLINT, nombre VARCHAR, descripcion VARCHAR)
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM persona p WHERE p.id = p_persona_id) THEN
+        RAISE EXCEPTION 'Persona no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
     SELECT r.id, r.nombre, r.descripcion
     FROM persona_rol pr
     JOIN rol r ON r.id = pr.rol_id
     WHERE pr.persona_id = p_persona_id
     ORDER BY r.id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_persona_asignar_rol(p_persona_id BIGINT, p_rol_id SMALLINT)

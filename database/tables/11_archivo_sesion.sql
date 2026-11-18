@@ -11,3 +11,5 @@ CREATE TABLE IF NOT EXISTS archivo_sesion (
                 )),
     url_archivo TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_archivo_sesion_sesion_id ON archivo_sesion(sesion_id);

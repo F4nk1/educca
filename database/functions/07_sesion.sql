@@ -132,8 +132,19 @@ CREATE OR REPLACE FUNCTION fn_sesion_eliminar(p_id BIGINT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
 BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_id;
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede eliminar una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     DELETE FROM sesion WHERE id = p_id;
-    RETURN FOUND;
+    RETURN TRUE;
 END;
 $$;

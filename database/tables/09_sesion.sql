@@ -16,3 +16,6 @@ CREATE TABLE IF NOT EXISTS sesion (
                          'PROGRAMADA', 'EJECUTADA', 'VALIDADA', 'CANCELADA'
                      ))
 );
+
+CREATE INDEX IF NOT EXISTS idx_sesion_meta_anual_id ON sesion(meta_anual_id);
+CREATE INDEX IF NOT EXISTS idx_sesion_estado ON sesion(estado);

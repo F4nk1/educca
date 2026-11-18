@@ -47,7 +47,7 @@ RETURNS BIGINT
 LANGUAGE sql
 AS $$
     INSERT INTO organizacion (nombre, tipo, codigo_modular_o_ref, sector_ubicacion, responsable_id)
-    VALUES (p_nombre, p_tipo, p_codigo_modular_o_ref, p_sector_ubicacion, p_responsable_id)
+    VALUES (p_nombre, p_tipo, NULLIF(BTRIM(p_codigo_modular_o_ref), ''), p_sector_ubicacion, p_responsable_id)
     RETURNING id;
 $$;
 
@@ -66,7 +66,7 @@ BEGIN
     UPDATE organizacion
     SET nombre = p_nombre,
         tipo = p_tipo,
-        codigo_modular_o_ref = p_codigo_modular_o_ref,
+        codigo_modular_o_ref = NULLIF(BTRIM(p_codigo_modular_o_ref), ''),
         sector_ubicacion = p_sector_ubicacion,
         responsable_id = p_responsable_id
     WHERE id = p_id;

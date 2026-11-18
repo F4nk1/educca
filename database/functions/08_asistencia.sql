@@ -9,13 +9,20 @@ RETURNS TABLE (
     participacion VARCHAR,
     calificacion  NUMERIC
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sesion s WHERE s.id = p_sesion_id) THEN
+        RAISE EXCEPTION 'Sesion no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
     SELECT a.sesion_id, a.persona_id, a.participacion, a.calificacion
     FROM asistencia a
     WHERE a.sesion_id = p_sesion_id
     ORDER BY a.persona_id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_asistencia_registrar(
@@ -25,20 +32,44 @@ CREATE OR REPLACE FUNCTION fn_asistencia_registrar(
     p_calificacion  NUMERIC
 )
 RETURNS VOID
-LANGUAGE sql
+LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
+BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_sesion_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Sesion no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede registrar asistencia en una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     INSERT INTO asistencia (sesion_id, persona_id, participacion, calificacion)
     VALUES (p_sesion_id, p_persona_id, COALESCE(p_participacion, 'ASISTENTE'), p_calificacion)
     ON CONFLICT (sesion_id, persona_id) DO UPDATE SET
         participacion = EXCLUDED.participacion,
         calificacion = EXCLUDED.calificacion;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_asistencia_eliminar(p_sesion_id BIGINT, p_persona_id BIGINT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
 BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_sesion_id;
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede eliminar asistencia de una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     DELETE FROM asistencia WHERE sesion_id = p_sesion_id AND persona_id = p_persona_id;
     RETURN FOUND;
 END;

@@ -11,6 +11,6 @@ CREATE TABLE IF NOT EXISTS meta_anual (
                     )),
     indicador       VARCHAR(120) NOT NULL,
     meta_programada INTEGER NOT NULL CHECK (meta_programada > 0),
-    presupuesto     NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    presupuesto     NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (presupuesto >= 0),
     UNIQUE (anio, actividad_minam, indicador)
 );

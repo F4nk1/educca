@@ -28,7 +28,7 @@ AS $$
         COUNT(DISTINCT s.id) FILTER (WHERE s.estado = 'PROGRAMADA') AS sesiones_programadas,
         COUNT(DISTINCT s.id) FILTER (WHERE s.estado = 'EJECUTADA') AS sesiones_ejecutadas,
         COUNT(DISTINCT s.id) FILTER (WHERE s.estado = 'VALIDADA') AS sesiones_validadas,
-        COUNT(a.persona_id) FILTER (WHERE s.estado IN ('EJECUTADA', 'VALIDADA')) AS total_asistentes
+        COUNT(a.persona_id) FILTER (WHERE s.estado IN ('EJECUTADA', 'VALIDADA') AND a.participacion = 'ASISTENTE') AS total_asistentes
     FROM meta_anual m
     LEFT JOIN sesion s ON s.meta_anual_id = m.id
     LEFT JOIN asistencia a ON a.sesion_id = s.id

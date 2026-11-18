@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS asistencia (
     participacion VARCHAR(20) NOT NULL DEFAULT 'ASISTENTE' CHECK (participacion IN (
                       'ASISTENTE', 'VOLUNTARIO_REPLICA', 'PONENTE'
                   )),
-    calificacion  NUMERIC(4, 2),
+    calificacion  NUMERIC(4, 2) CHECK (calificacion >= 0 AND calificacion <= 20),
     PRIMARY KEY (sesion_id, persona_id)
 );

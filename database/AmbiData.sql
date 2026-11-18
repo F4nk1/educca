@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS meta_anual (
                     )),
     indicador       VARCHAR(120) NOT NULL,
     meta_programada INTEGER NOT NULL CHECK (meta_programada > 0),
-    presupuesto     NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    presupuesto     NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (presupuesto >= 0),
     UNIQUE (anio, actividad_minam, indicador)
 );
 
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS meta_anual (
 CREATE TABLE IF NOT EXISTS promotor_periodo (
     id                 BIGSERIAL PRIMARY KEY,
     persona_id         BIGINT NOT NULL REFERENCES persona(id) ON DELETE RESTRICT,
-    anio               SMALLINT NOT NULL,
+    anio               SMALLINT NOT NULL CHECK (anio >= 2024),
     tipo_promotor      VARCHAR(10) NOT NULL CHECK (tipo_promotor IN (
                            'PAE', 'PAJ', 'PAC', 'DOCENTE'
                        )),
@@ -133,6 +133,8 @@ CREATE TABLE IF NOT EXISTS promotor_periodo (
     codigo_certificado VARCHAR(40) UNIQUE,
     UNIQUE (persona_id, anio, tipo_promotor)
 );
+
+CREATE INDEX IF NOT EXISTS idx_promotor_periodo_anio ON promotor_periodo(anio);
 
 
 -- ==============================================================================
@@ -154,6 +156,9 @@ CREATE TABLE IF NOT EXISTS sesion (
                      ))
 );
 
+CREATE INDEX IF NOT EXISTS idx_sesion_meta_anual_id ON sesion(meta_anual_id);
+CREATE INDEX IF NOT EXISTS idx_sesion_estado ON sesion(estado);
+
 
 -- ==============================================================================
 -- Tabla: asistencia
@@ -166,7 +171,7 @@ CREATE TABLE IF NOT EXISTS asistencia (
     participacion VARCHAR(20) NOT NULL DEFAULT 'ASISTENTE' CHECK (participacion IN (
                       'ASISTENTE', 'VOLUNTARIO_REPLICA', 'PONENTE'
                   )),
-    calificacion  NUMERIC(4, 2),
+    calificacion  NUMERIC(4, 2) CHECK (calificacion >= 0 AND calificacion <= 20),
     PRIMARY KEY (sesion_id, persona_id)
 );
 
@@ -184,6 +189,8 @@ CREATE TABLE IF NOT EXISTS archivo_sesion (
                 )),
     url_archivo TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_archivo_sesion_sesion_id ON archivo_sesion(sesion_id);
 
 -- ================= FUNCIONES =================
 
@@ -313,7 +320,7 @@ RETURNS BIGINT
 LANGUAGE sql
 AS $$
     INSERT INTO persona (dni, nombres, apellidos, sexo, fecha_nacimiento, telefono, email, password_hash, activo)
-    VALUES (p_dni, p_nombres, p_apellidos, p_sexo, p_fecha_nacimiento, p_telefono, p_email, p_password_hash, p_activo)
+    VALUES (p_dni, p_nombres, p_apellidos, p_sexo, p_fecha_nacimiento, NULLIF(BTRIM(p_telefono), ''), NULLIF(BTRIM(p_email), ''), p_password_hash, p_activo)
     RETURNING id;
 $$;
 
@@ -337,8 +344,8 @@ BEGIN
         apellidos = p_apellidos,
         sexo = p_sexo,
         fecha_nacimiento = p_fecha_nacimiento,
-        telefono = p_telefono,
-        email = p_email
+        telefono = NULLIF(BTRIM(p_telefono), ''),
+        email = NULLIF(BTRIM(p_email), '')
     WHERE id = p_id;
     RETURN FOUND;
 END;
@@ -366,14 +373,21 @@ $$;
 
 CREATE OR REPLACE FUNCTION fn_persona_listar_roles(p_persona_id BIGINT)
 RETURNS TABLE (id SMALLINT, nombre VARCHAR, descripcion VARCHAR)
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM persona p WHERE p.id = p_persona_id) THEN
+        RAISE EXCEPTION 'Persona no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
     SELECT r.id, r.nombre, r.descripcion
     FROM persona_rol pr
     JOIN rol r ON r.id = pr.rol_id
     WHERE pr.persona_id = p_persona_id
     ORDER BY r.id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_persona_asignar_rol(p_persona_id BIGINT, p_rol_id SMALLINT)
@@ -458,16 +472,33 @@ AS $$
     INSERT INTO permiso (clave, descripcion) VALUES (p_clave, p_descripcion) RETURNING id;
 $$;
 
+CREATE OR REPLACE FUNCTION fn_permiso_eliminar(p_id SMALLINT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM permiso WHERE id = p_id;
+    RETURN FOUND;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION fn_rol_listar_permisos(p_rol_id SMALLINT)
 RETURNS TABLE (id SMALLINT, clave VARCHAR, descripcion VARCHAR)
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM rol r WHERE r.id = p_rol_id) THEN
+        RAISE EXCEPTION 'Rol no encontrado' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
     SELECT pm.id, pm.clave, pm.descripcion
     FROM rol_permiso rp
     JOIN permiso pm ON pm.id = rp.permiso_id
     WHERE rp.rol_id = p_rol_id
     ORDER BY pm.id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_rol_asignar_permiso(p_rol_id SMALLINT, p_permiso_id SMALLINT)
@@ -539,7 +570,7 @@ RETURNS BIGINT
 LANGUAGE sql
 AS $$
     INSERT INTO organizacion (nombre, tipo, codigo_modular_o_ref, sector_ubicacion, responsable_id)
-    VALUES (p_nombre, p_tipo, p_codigo_modular_o_ref, p_sector_ubicacion, p_responsable_id)
+    VALUES (p_nombre, p_tipo, NULLIF(BTRIM(p_codigo_modular_o_ref), ''), p_sector_ubicacion, p_responsable_id)
     RETURNING id;
 $$;
 
@@ -558,7 +589,7 @@ BEGIN
     UPDATE organizacion
     SET nombre = p_nombre,
         tipo = p_tipo,
-        codigo_modular_o_ref = p_codigo_modular_o_ref,
+        codigo_modular_o_ref = NULLIF(BTRIM(p_codigo_modular_o_ref), ''),
         sector_ubicacion = p_sector_ubicacion,
         responsable_id = p_responsable_id
     WHERE id = p_id;
@@ -718,7 +749,7 @@ RETURNS BIGINT
 LANGUAGE sql
 AS $$
     INSERT INTO promotor_periodo (persona_id, anio, tipo_promotor, organizacion_id, estado, codigo_certificado)
-    VALUES (p_persona_id, p_anio, p_tipo_promotor, p_organizacion_id, COALESCE(p_estado, 'INSCRITO'), p_codigo_certificado)
+    VALUES (p_persona_id, p_anio, p_tipo_promotor, p_organizacion_id, COALESCE(p_estado, 'INSCRITO'), NULLIF(BTRIM(p_codigo_certificado), ''))
     RETURNING id;
 $$;
 
@@ -741,7 +772,7 @@ BEGIN
         tipo_promotor = p_tipo_promotor,
         organizacion_id = p_organizacion_id,
         estado = p_estado,
-        codigo_certificado = p_codigo_certificado
+        codigo_certificado = NULLIF(BTRIM(p_codigo_certificado), '')
     WHERE id = p_id;
     RETURN FOUND;
 END;
@@ -892,9 +923,20 @@ CREATE OR REPLACE FUNCTION fn_sesion_eliminar(p_id BIGINT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
 BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_id;
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede eliminar una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     DELETE FROM sesion WHERE id = p_id;
-    RETURN FOUND;
+    RETURN TRUE;
 END;
 $$;
 
@@ -910,13 +952,20 @@ RETURNS TABLE (
     participacion VARCHAR,
     calificacion  NUMERIC
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sesion s WHERE s.id = p_sesion_id) THEN
+        RAISE EXCEPTION 'Sesion no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
     SELECT a.sesion_id, a.persona_id, a.participacion, a.calificacion
     FROM asistencia a
     WHERE a.sesion_id = p_sesion_id
     ORDER BY a.persona_id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_asistencia_registrar(
@@ -926,20 +975,44 @@ CREATE OR REPLACE FUNCTION fn_asistencia_registrar(
     p_calificacion  NUMERIC
 )
 RETURNS VOID
-LANGUAGE sql
+LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
+BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_sesion_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Sesion no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede registrar asistencia en una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     INSERT INTO asistencia (sesion_id, persona_id, participacion, calificacion)
     VALUES (p_sesion_id, p_persona_id, COALESCE(p_participacion, 'ASISTENTE'), p_calificacion)
     ON CONFLICT (sesion_id, persona_id) DO UPDATE SET
         participacion = EXCLUDED.participacion,
         calificacion = EXCLUDED.calificacion;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_asistencia_eliminar(p_sesion_id BIGINT, p_persona_id BIGINT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
 BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_sesion_id;
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede eliminar asistencia de una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     DELETE FROM asistencia WHERE sesion_id = p_sesion_id AND persona_id = p_persona_id;
     RETURN FOUND;
 END;
@@ -957,13 +1030,20 @@ RETURNS TABLE (
     tipo        VARCHAR,
     url_archivo TEXT
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sesion s WHERE s.id = p_sesion_id) THEN
+        RAISE EXCEPTION 'Sesion no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
     SELECT a.id, a.sesion_id, a.tipo, a.url_archivo
     FROM archivo_sesion a
     WHERE a.sesion_id = p_sesion_id
     ORDER BY a.id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_archivo_sesion_crear(
@@ -972,18 +1052,45 @@ CREATE OR REPLACE FUNCTION fn_archivo_sesion_crear(
     p_url_archivo TEXT
 )
 RETURNS BIGINT
-LANGUAGE sql
+LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
+    v_id     BIGINT;
+BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_sesion_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Sesion no encontrada' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede adjuntar archivos a una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     INSERT INTO archivo_sesion (sesion_id, tipo, url_archivo)
     VALUES (p_sesion_id, p_tipo, p_url_archivo)
-    RETURNING id;
+    RETURNING id INTO v_id;
+
+    RETURN v_id;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_archivo_sesion_eliminar(p_id BIGINT, p_sesion_id BIGINT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_estado VARCHAR(20);
 BEGIN
+    SELECT estado INTO v_estado FROM sesion WHERE id = p_sesion_id;
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_estado IN ('VALIDADA', 'CANCELADA') THEN
+        RAISE EXCEPTION 'No se puede eliminar archivos de una sesion en estado %', v_estado USING ERRCODE = 'P0001';
+    END IF;
+
     DELETE FROM archivo_sesion WHERE id = p_id AND sesion_id = p_sesion_id;
     RETURN FOUND;
 END;
@@ -1020,7 +1127,7 @@ AS $$
         COUNT(DISTINCT s.id) FILTER (WHERE s.estado = 'PROGRAMADA') AS sesiones_programadas,
         COUNT(DISTINCT s.id) FILTER (WHERE s.estado = 'EJECUTADA') AS sesiones_ejecutadas,
         COUNT(DISTINCT s.id) FILTER (WHERE s.estado = 'VALIDADA') AS sesiones_validadas,
-        COUNT(a.persona_id) FILTER (WHERE s.estado IN ('EJECUTADA', 'VALIDADA')) AS total_asistentes
+        COUNT(a.persona_id) FILTER (WHERE s.estado IN ('EJECUTADA', 'VALIDADA') AND a.participacion = 'ASISTENTE') AS total_asistentes
     FROM meta_anual m
     LEFT JOIN sesion s ON s.meta_anual_id = m.id
     LEFT JOIN asistencia a ON a.sesion_id = s.id

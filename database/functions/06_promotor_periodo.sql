@@ -51,7 +51,7 @@ RETURNS BIGINT
 LANGUAGE sql
 AS $$
     INSERT INTO promotor_periodo (persona_id, anio, tipo_promotor, organizacion_id, estado, codigo_certificado)
-    VALUES (p_persona_id, p_anio, p_tipo_promotor, p_organizacion_id, COALESCE(p_estado, 'INSCRITO'), p_codigo_certificado)
+    VALUES (p_persona_id, p_anio, p_tipo_promotor, p_organizacion_id, COALESCE(p_estado, 'INSCRITO'), NULLIF(BTRIM(p_codigo_certificado), ''))
     RETURNING id;
 $$;
 
@@ -74,7 +74,7 @@ BEGIN
         tipo_promotor = p_tipo_promotor,
         organizacion_id = p_organizacion_id,
         estado = p_estado,
-        codigo_certificado = p_codigo_certificado
+        codigo_certificado = NULLIF(BTRIM(p_codigo_certificado), '')
     WHERE id = p_id;
     RETURN FOUND;
 END;
