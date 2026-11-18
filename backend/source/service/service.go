@@ -8,18 +8,24 @@ import (
 )
 
 type Service interface {
+	// Health
+	Ping(ctx context.Context) error
+
 	// Auth & RBAC
 	Login(ctx context.Context, identificador, password string) (*model.Persona, error)
 	GetPersonaRolesPermisos(ctx context.Context, personaId int64) ([]string, []string, error)
 	HasPermission(ctx context.Context, personaId int64, permiso string) (bool, error)
 
-	// Persona
+	// Persona & ARCO
 	ListPersonas(ctx context.Context) ([]model.Persona, error)
 	GetPersona(ctx context.Context, id int64) (*model.Persona, error)
 	CreatePersona(ctx context.Context, p *model.Persona, password string) (int64, error)
+	RegisterCapacitando(ctx context.Context, p *model.Persona, password string, policyVersion string) (int64, error)
 	UpdatePersona(ctx context.Context, p *model.Persona) error
 	SetPersonaActivo(ctx context.Context, id int64, activo bool) error
 	SetPersonaPassword(ctx context.Context, id int64, password string) error
+	ExportPersonaArco(ctx context.Context, id int64) (*model.ArcoExport, error)
+	AnonimizarPersonaArco(ctx context.Context, id int64) error
 	ListPersonaRoles(ctx context.Context, personaId int64) ([]model.Rol, error)
 	AssignPersonaRol(ctx context.Context, personaId int64, rolId int16) error
 	RemovePersonaRol(ctx context.Context, personaId int64, rolId int16) error
@@ -59,16 +65,24 @@ type Service interface {
 	DeletePromotorPeriodo(ctx context.Context, id int64) error
 
 	// Sesion
-	ListSesiones(ctx context.Context, metaAnualId *int64, estado *string) ([]model.Sesion, error)
+	ListSesiones(ctx context.Context, metaAnualId *int64, estado *string, ejeTematico *string, organizacionId *int64) ([]model.Sesion, error)
 	GetSesion(ctx context.Context, id int64) (*model.Sesion, error)
 	CreateSesion(ctx context.Context, s *model.Sesion) (int64, error)
 	UpdateSesion(ctx context.Context, s *model.Sesion) error
 	ChangeSesionEstado(ctx context.Context, id int64, estado string) error
 	DeleteSesion(ctx context.Context, id int64) error
 
+	// Inscripcion
+	CreateInscripcion(ctx context.Context, sesionId, personaId int64) (int64, error)
+	CancelInscripcion(ctx context.Context, sesionId, personaId int64) error
+	ListInscripcionesBySesion(ctx context.Context, sesionId int64) ([]model.InscripcionSesion, error)
+	ListInscripcionesByPersona(ctx context.Context, personaId int64) ([]model.MiInscripcion, error)
+
 	// Asistencia
 	ListAsistencias(ctx context.Context, sesionId int64) ([]model.Asistencia, error)
+	ListAsistenciasByPersona(ctx context.Context, personaId int64) ([]model.MiAsistencia, error)
 	UpsertAsistencia(ctx context.Context, a *model.Asistencia) error
+	CheckInQR(ctx context.Context, sesionId, personaId int64, distanciaMetros float64) error
 	DeleteAsistencia(ctx context.Context, sesionId, personaId int64) error
 
 	// Archivo Sesion
@@ -86,4 +100,8 @@ type service struct {
 
 func NewService(conn *database.Database) Service {
 	return &service{conn: conn}
+}
+
+func (s *service) Ping(ctx context.Context) error {
+	return s.conn.Ping(ctx)
 }

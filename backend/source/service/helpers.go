@@ -4,15 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+const earthRadiusMeters = 6371000.0
 
 var (
 	ErrNotFound           = errors.New("resource not found")
 	ErrAlreadyExists      = errors.New("resource already exists")
 	ErrConflict           = errors.New("operation conflicts with current state or references")
 	ErrInvalidInput       = errors.New("invalid input or reference")
+	ErrUnprocessable      = errors.New("unprocessable business rule")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInactiveUser       = errors.New("user is inactive")
 )
@@ -27,6 +31,26 @@ func (e *BusinessError) Error() string {
 
 func (e *BusinessError) Is(target error) bool {
 	return target == ErrConflict
+}
+
+// HaversineMeters calculates the great-circle distance in meters between two geographic coordinates.
+func HaversineMeters(lat1, lon1, lat2, lon2 float64) float64 {
+	toRad := math.Pi / 180.0
+	dLat := (lat2 - lat1) * toRad
+	dLon := (lon2 - lon1) * toRad
+	rLat1 := lat1 * toRad
+	rLat2 := lat2 * toRad
+
+	sinDLat := math.Sin(dLat / 2.0)
+	sinDLon := math.Sin(dLon / 2.0)
+	a := sinDLat*sinDLat + math.Cos(rLat1)*math.Cos(rLat2)*sinDLon*sinDLon
+	if a > 1.0 {
+		a = 1.0
+	} else if a < 0.0 {
+		a = 0.0
+	}
+	c := 2.0 * math.Atan2(math.Sqrt(a), math.Sqrt(1.0-a))
+	return earthRadiusMeters * c
 }
 
 func classifyError(err error, isDelete bool) error {
@@ -46,7 +70,7 @@ func classifyError(err error, isDelete bool) error {
 				return ErrConflict
 			}
 			return ErrInvalidInput
-		case "23514", "22001":
+		case "23514", "22001", "23502", "22P02":
 			return ErrInvalidInput
 		case "P0001":
 			return &BusinessError{Message: pgErr.Message}
