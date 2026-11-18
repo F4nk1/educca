@@ -17,6 +17,9 @@ const (
 	RefreshTokenDuration = DaysDuration * 24 * time.Hour
 	TokenType            = "Bearer"
 	Issuer               = "educca-api"
+
+	TokenUseAccess  = "access"
+	TokenUseRefresh = "refresh"
 )
 
 type Auth struct {
@@ -31,17 +34,17 @@ func NewAuth(accessSecret, refreshSecret string) *Auth {
 	}
 }
 
-func (a *Auth) GenerateAuthToken(personaId int64, roles, permisos []string) (*model.Token, error) {
+func (a *Auth) GenerateAuthToken(personaId int64) (*model.Token, error) {
 	now := time.Now()
 	accessExpiry := now.Add(AccessTokenDuration)
 	refreshExpiry := now.Add(RefreshTokenDuration)
 
-	accessToken, err := a.generateToken(personaId, roles, permisos, accessExpiry, a.accessSecret)
+	accessToken, err := a.generateToken(personaId, TokenUseAccess, accessExpiry, a.accessSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %v", err)
 	}
 
-	refreshToken, err := a.generateToken(personaId, roles, permisos, refreshExpiry, a.refreshSecret)
+	refreshToken, err := a.generateToken(personaId, TokenUseRefresh, refreshExpiry, a.refreshSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %v", err)
 	}
@@ -54,17 +57,17 @@ func (a *Auth) GenerateAuthToken(personaId int64, roles, permisos []string) (*mo
 	}, nil
 }
 
-func (a *Auth) generateToken(personaId int64, roles, permisos []string, expiry time.Time, secret []byte) (string, error) {
+func (a *Auth) generateToken(personaId int64, tokenUse string, expiry time.Time, secret []byte) (string, error) {
+	now := time.Now()
 	claims := model.Claims{
 		PersonaId: personaId,
-		Roles:     roles,
-		Permisos:  permisos,
+		TokenUse:  tokenUse,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    Issuer,
 			Subject:   fmt.Sprintf("%d", personaId),
 			ExpiresAt: jwt.NewNumericDate(expiry),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 
@@ -73,14 +76,14 @@ func (a *Auth) generateToken(personaId int64, roles, permisos []string, expiry t
 }
 
 func (a *Auth) ValidateAccessToken(tokenString string) (*model.Claims, error) {
-	return a.validateToken(tokenString, a.accessSecret)
+	return a.validateToken(tokenString, TokenUseAccess, a.accessSecret)
 }
 
 func (a *Auth) ValidateRefreshToken(tokenString string) (*model.Claims, error) {
-	return a.validateToken(tokenString, a.refreshSecret)
+	return a.validateToken(tokenString, TokenUseRefresh, a.refreshSecret)
 }
 
-func (a *Auth) validateToken(tokenString string, secret []byte) (*model.Claims, error) {
+func (a *Auth) validateToken(tokenString, expectedUse string, secret []byte) (*model.Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &model.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")
@@ -92,7 +95,7 @@ func (a *Auth) validateToken(tokenString string, secret []byte) (*model.Claims, 
 		return nil, fmt.Errorf("failed to parse token: %v", err)
 	}
 
-	if claims, ok := token.Claims.(*model.Claims); ok && token.Valid {
+	if claims, ok := token.Claims.(*model.Claims); ok && token.Valid && claims.TokenUse == expectedUse {
 		return claims, nil
 	}
 
