@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -11,6 +12,16 @@ import (
 	"github.com/F4nk1/educca/backend/source/model"
 	"github.com/F4nk1/educca/backend/source/tracer"
 )
+
+func shouldBypassHTTPResponseCache(path string) bool {
+	if strings.HasSuffix(path, "/qr") || strings.HasSuffix(path, "/monitoreo") {
+		return true
+	}
+	if strings.HasPrefix(path, "/api/v1/arco/") {
+		return true
+	}
+	return false
+}
 
 func Cache(c cache.Cache) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
@@ -22,6 +33,12 @@ func Cache(c cache.Cache) mux.MiddlewareFunc {
 				if recorder.StatusCode >= http.StatusOK && recorder.StatusCode < http.StatusBadRequest {
 					c.Flush()
 				}
+				return
+			}
+
+			if shouldBypassHTTPResponseCache(r.URL.Path) {
+				w.Header().Set("Cache-Control", "no-store")
+				next.ServeHTTP(w, r)
 				return
 			}
 

@@ -21,7 +21,8 @@ func Permission(checker PermissionChecker) mux.MiddlewareFunc {
 			ctx := r.Context()
 			required := common.GetRequiredPermission(r)
 			if required == "" {
-				next.ServeHTTP(w, r)
+				tracer.Warnf(ctx, "Unmapped route permission for %s %s", r.Method, r.URL.Path)
+				common.WriteErrorResponse(w, common.MISSING_PERMISSION_ERROR)
 				return
 			}
 
@@ -40,6 +41,10 @@ func Permission(checker PermissionChecker) mux.MiddlewareFunc {
 			}
 			if !allowed {
 				tracer.Warnf(ctx, "Permission '%s' denied for persona %d", required, claims.PersonaId)
+				if required == common.PermAuthenticated {
+					common.WriteErrorResponse(w, common.ACCOUNT_INACTIVE_ERROR)
+					return
+				}
 				common.WriteErrorResponse(w, common.MISSING_PERMISSION_ERROR)
 				return
 			}

@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	PermAuthenticated      = "authenticated"
 	PermPersonasLeer       = "personas:leer"
 	PermPersonasEscribir   = "personas:escribir"
 	PermRolesGestionar     = "roles:gestionar"
@@ -19,12 +20,20 @@ const (
 	PermSesionesLeer       = "sesiones:leer"
 	PermSesionesCrear      = "sesiones:crear"
 	PermSesionesValidar    = "sesiones:validar"
+	PermSesionesQR         = "sesiones:qr"
+	PermInscripcionesLeer  = "inscripciones:leer"
+	PermInscripcionesGest  = "inscripciones:gestionar"
 	PermAsistenciasReg     = "asistencias:registrar"
+	PermAsistenciasQR      = "asistencias:checkin_qr"
 	PermArchivosSubir      = "archivos:subir"
 	PermReportesExportar   = "reportes:exportar"
+	PermArcoGestionar      = "arco:gestionar"
 )
 
 var RoutePermissions = map[string]map[string]string{
+	"/api/v1/me": {
+		http.MethodGet: PermAuthenticated,
+	},
 	"/api/v1/personas": {
 		http.MethodGet:  PermPersonasLeer,
 		http.MethodPost: PermPersonasEscribir,
@@ -36,12 +45,21 @@ var RoutePermissions = map[string]map[string]string{
 	"/api/v1/personas/{id}/activo": {
 		http.MethodPatch: PermPersonasEscribir,
 	},
+	"/api/v1/personas/{id}/password": {
+		http.MethodPatch: PermAuthenticated,
+	},
 	"/api/v1/personas/{id}/roles": {
 		http.MethodGet:  PermPersonasLeer,
 		http.MethodPost: PermRolesGestionar,
 	},
 	"/api/v1/personas/{id}/roles/{rol_id}": {
 		http.MethodDelete: PermRolesGestionar,
+	},
+	"/api/v1/arco/personas/{id}/exportar": {
+		http.MethodGet: PermAuthenticated,
+	},
+	"/api/v1/arco/personas/{id}/anonimizar": {
+		http.MethodPost: PermArcoGestionar,
 	},
 	"/api/v1/roles": {
 		http.MethodGet:  PermRolesGestionar,
@@ -102,8 +120,35 @@ var RoutePermissions = map[string]map[string]string{
 		http.MethodPut:    PermSesionesCrear,
 		http.MethodDelete: PermSesionesCrear,
 	},
+	"/api/v1/sesiones/{id}/estado": {
+		http.MethodPatch: PermAuthenticated,
+	},
+	"/api/v1/sesiones/{id}/qr": {
+		http.MethodPost:   PermSesionesQR,
+		http.MethodGet:    PermSesionesQR,
+		http.MethodDelete: PermSesionesQR,
+	},
+	"/api/v1/sesiones/{id}/monitoreo": {
+		http.MethodGet: PermSesionesQR,
+	},
+	"/api/v1/sesiones/{id}/inscripciones": {
+		http.MethodGet:  PermInscripcionesLeer,
+		http.MethodPost: PermInscripcionesGest,
+	},
+	"/api/v1/sesiones/{id}/inscripciones/mia": {
+		http.MethodDelete: PermInscripcionesGest,
+	},
+	"/api/v1/mi/inscripciones": {
+		http.MethodGet: PermInscripcionesGest,
+	},
+	"/api/v1/mi/asistencias": {
+		http.MethodGet: PermAsistenciasQR,
+	},
+	"/api/v1/asistencias/check-in-qr": {
+		http.MethodPost: PermAsistenciasQR,
+	},
 	"/api/v1/sesiones/{id}/asistencias": {
-		http.MethodGet:  PermSesionesLeer,
+		http.MethodGet:  PermAsistenciasReg,
 		http.MethodPost: PermAsistenciasReg,
 	},
 	"/api/v1/sesiones/{id}/asistencias/{persona_id}": {
@@ -121,7 +166,7 @@ var RoutePermissions = map[string]map[string]string{
 	},
 }
 
-// GetRequiredPermission returns the permission key for the matched route, or empty string when none is required.
+// GetRequiredPermission returns the permission key for the matched route, or empty string when none is registered.
 func GetRequiredPermission(r *http.Request) string {
 	route := mux.CurrentRoute(r)
 	if route == nil {

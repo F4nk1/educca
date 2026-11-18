@@ -14,15 +14,22 @@ type Response struct {
 func writeJSON(w http.ResponseWriter, httpStatus int, data any) {
 	w.Header().Set("Content-Type", ContentTypeJSON)
 	w.WriteHeader(httpStatus)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 func WriteErrorResponse(w http.ResponseWriter, errorCode int) {
-	WriteErrorMessage(w, errorCode, ErrorMessages[errorCode])
+	msg, ok := ErrorMessages[errorCode]
+	if !ok {
+		msg = ErrorMessages[INTERNAL_ERROR]
+	}
+	WriteErrorMessage(w, errorCode, msg)
 }
 
 func WriteErrorMessage(w http.ResponseWriter, errorCode int, message string) {
-	httpStatus := ErrorCodes[errorCode]
+	httpStatus, ok := ErrorCodes[errorCode]
+	if !ok {
+		httpStatus = http.StatusInternalServerError
+	}
 	writeJSON(w, httpStatus, Response{
 		HttpStatusCode: httpStatus,
 		ErrorCode:      errorCode,
