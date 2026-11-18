@@ -24,16 +24,46 @@ class Course {
       return DateTime.tryParse(value.toString()) ?? DateTime.now();
     }
 
+    final rawId = json['id'] ?? json['sesion_id'];
+    final idStr = rawId != null ? rawId.toString() : '';
+
+    final title = json['title'] as String? ??
+        json['titulo'] as String? ??
+        'Capacitación sin título';
+
+    final description = json['description'] as String? ??
+        json['eje_tematico'] as String? ??
+        json['modalidad'] as String?;
+
+    final instructor = json['instructorName'] as String? ??
+        json['instructor'] as String? ??
+        (json['responsable_id'] != null ? 'Capacitador #${json['responsable_id']}' : 'Docente asignado');
+
+    final start = parseDate(json['startDate'] ?? json['fecha_inicio']);
+
+    DateTime end;
+    if (json['endDate'] != null) {
+      end = parseDate(json['endDate']);
+    } else if (json['duracion_minutos'] != null) {
+      final mins = int.tryParse(json['duracion_minutos'].toString()) ?? 120;
+      end = start.add(Duration(minutes: mins));
+    } else {
+      end = start.add(const Duration(hours: 2));
+    }
+
+    final status = json['status'] as String? ??
+        json['estado'] as String? ??
+        json['estado_sesion'] as String? ??
+        'ACTIVE';
+
     return Course(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? 'Capacitación sin título',
-      description: json['description'] as String?,
-      instructorName: json['instructorName'] as String? ??
-          json['instructor'] as String? ??
-          'Docente asignado',
-      startDate: parseDate(json['startDate']),
-      endDate: parseDate(json['endDate']),
-      status: json['status'] as String? ?? 'ACTIVE',
+      id: idStr,
+      title: title,
+      description: description,
+      instructorName: instructor,
+      startDate: start,
+      endDate: end,
+      status: status,
     );
   }
 

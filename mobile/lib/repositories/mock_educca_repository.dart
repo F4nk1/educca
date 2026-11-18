@@ -75,6 +75,12 @@ class MockEduccaRepository implements EduccaRepository {
     required String promoterCategory,
     required bool isAdult,
     required bool privacyConsentAccepted,
+    String? dni,
+    String? nombres,
+    String? apellidos,
+    String? sexo,
+    String? fechaNacimiento,
+    String? telefono,
   }) async {
     await Future.delayed(const Duration(milliseconds: 700));
 
@@ -96,8 +102,55 @@ class MockEduccaRepository implements EduccaRepository {
         'promoterCategory': promoterCategory,
         'isAdult': isAdult,
         'privacyConsentAccepted': privacyConsentAccepted,
+        ...(dni != null ? {'dni': dni} : {}),
       },
     });
+  }
+
+  @override
+  Future<Result<dynamic>> getProfile() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return Result.success({
+      'persona': {
+        'id': 1,
+        'dni': '00000000',
+        'nombres': 'María',
+        'apellidos': 'Quispe (Modo Demo)',
+        'sexo': 'F',
+        'email': 'promotora.demo@example.org',
+        'categoria': 'PAJ',
+        'consentimiento_at': DateTime.now().toIso8601String(),
+        'activo': true,
+      },
+      'roles': ['capacitando'],
+      'permisos': ['organizaciones:leer', 'sesiones:leer', 'asistencias:checkin_qr'],
+    });
+  }
+
+  @override
+  Future<Result<dynamic>> refreshSession(String refreshToken) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return Result.success({
+      'access_token': 'new_mock_jwt_token_educca_demo',
+      'refresh_token': 'new_mock_refresh_token_educca_demo',
+      'expires_in': 900,
+      'token_type': 'Bearer',
+    });
+  }
+
+  @override
+  Future<Result<dynamic>> enrollSession(int sessionId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return Result.success({
+      'id': 100,
+      'sesion_id': sessionId,
+      'estado': 'INSCRITO',
+    });
+  }
+
+  @override
+  Future<Result<dynamic>> getMyEnrollments() async {
+    return getPromoterSessions();
   }
 
   @override

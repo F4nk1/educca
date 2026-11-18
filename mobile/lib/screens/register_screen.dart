@@ -77,7 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       fullName: _nameController.text.trim(),
       email: _emailController.text.trim(),
       password: _passwordController.text,
-      promoterCategory: _selectedCategory.codeName,
+      promoterCategory: _selectedCategory.backendCode,
       isAdult: _selectedCategory == PromoterCategory.escolar ? _isAdultConfirmed : true,
       privacyConsentAccepted: _privacyConsentAccepted,
     );

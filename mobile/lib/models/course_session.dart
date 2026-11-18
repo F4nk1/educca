@@ -34,8 +34,12 @@ class CourseSession {
       final str = raw?.toString().toUpperCase();
       switch (str) {
         case 'OPEN':
+        case 'EN_CURSO':
           return SessionAttendanceStatus.open;
         case 'CLOSED':
+        case 'CONCLUIDA':
+        case 'VALIDADA':
+        case 'CANCELADA':
           return SessionAttendanceStatus.closed;
         default:
           return SessionAttendanceStatus.scheduled;
@@ -47,15 +51,41 @@ class CourseSession {
       return DateTime.tryParse(value.toString()) ?? DateTime.now();
     }
 
+    final rawId = json['id'] ?? json['sesion_id'];
+    final idStr = rawId != null ? rawId.toString() : '';
+
+    final rawCourseId = json['courseId'] ?? json['meta_anual_id'] ?? idStr;
+    final courseIdStr = rawCourseId.toString();
+
+    final title = json['title'] as String? ?? json['titulo'] as String? ?? 'Sesión formativa';
+    final date = parseDate(json['scheduledDate'] ?? json['fecha_inicio']);
+
+    String startStr = json['startTime'] as String? ?? '';
+    if (startStr.isEmpty) {
+      startStr = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    }
+
+    String endStr = json['endTime'] as String? ?? '';
+    if (endStr.isEmpty && json['duracion_minutos'] != null) {
+      final mins = int.tryParse(json['duracion_minutos'].toString()) ?? 120;
+      final endDate = date.add(Duration(minutes: mins));
+      endStr = '${endDate.hour.toString().padLeft(2, '0')}:${endDate.minute.toString().padLeft(2, '0')}';
+    }
+
+    final locationStr = json['location'] as String? ??
+        (json['modalidad'] != null ? 'Modalidad ${json['modalidad']}' : 'Sede Presencial');
+
+    final rawStatus = json['attendanceStatus'] ?? json['estado'] ?? json['estado_sesion'];
+
     return CourseSession(
-      id: json['id'] as String? ?? '',
-      courseId: json['courseId'] as String? ?? '',
-      title: json['title'] as String? ?? 'Sesión formativa',
-      scheduledDate: parseDate(json['scheduledDate']),
-      startTime: json['startTime'] as String? ?? '',
-      endTime: json['endTime'] as String? ?? '',
-      location: json['location'] as String? ?? 'Modalidad Presencial',
-      attendanceStatus: parseStatus(json['attendanceStatus']),
+      id: idStr,
+      courseId: courseIdStr,
+      title: title,
+      scheduledDate: date,
+      startTime: startStr,
+      endTime: endStr,
+      location: locationStr,
+      attendanceStatus: parseStatus(rawStatus),
     );
   }
 }

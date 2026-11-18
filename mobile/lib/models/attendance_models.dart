@@ -42,14 +42,45 @@ class AttendanceRecord {
 
     final sessionMap = json['session'] is Map ? json['session'] as Map<String, dynamic> : null;
 
+    final rawSesionId = json['sessionId'] ?? json['sesion_id'] ?? sessionMap?['id'];
+    final sesIdStr = rawSesionId != null ? rawSesionId.toString() : '';
+
+    final idStr = json['id'] as String? ??
+        json['attendanceId'] as String? ??
+        (sesIdStr.isNotEmpty ? 'att-$sesIdStr' : '');
+
+    final title = json['sessionTitle'] as String? ??
+        json['titulo'] as String? ??
+        sessionMap?['title'] as String? ??
+        'Sesión formativa';
+
+    final course = json['courseTitle'] as String? ??
+        (json['eje_tematico'] != null ? 'Eje: ${json['eje_tematico']}' : null) ??
+        sessionMap?['title'] as String? ??
+        'Taller Ambiental EDUCCA';
+
+    String venue = json['venueName'] as String? ?? sessionMap?['venueName'] as String? ?? '';
+    if (venue.isEmpty) {
+      if (json['distancia_metros'] != null) {
+        final mod = json['modalidad']?.toString() ?? 'PRESENCIAL';
+        venue = 'Sede $mod (${json['distancia_metros']} m)';
+      } else {
+        venue = 'Sede EDUCCA Cusco';
+      }
+    }
+
+    final statusStr = json['status'] as String? ??
+        json['participacion'] as String? ??
+        'CONFIRMED';
+
     return AttendanceRecord(
-      id: json['id'] as String? ?? json['attendanceId'] as String? ?? '',
-      sessionId: json['sessionId'] as String? ?? sessionMap?['id'] as String? ?? '',
-      sessionTitle: json['sessionTitle'] as String? ?? sessionMap?['title'] as String? ?? 'Sesión formativa',
-      courseTitle: json['courseTitle'] as String? ?? sessionMap?['title'] as String? ?? 'Taller Ambiental EDUCCA',
-      venueName: json['venueName'] as String? ?? sessionMap?['venueName'] as String? ?? 'Sede EDUCCA Cusco',
-      markedAt: parseDate(json['markedAt'] ?? json['recordedAt']),
-      status: json['status'] as String? ?? 'CONFIRMED',
+      id: idStr,
+      sessionId: sesIdStr,
+      sessionTitle: title,
+      courseTitle: course,
+      venueName: venue,
+      markedAt: parseDate(json['markedAt'] ?? json['recordedAt'] ?? json['registrado_at']),
+      status: statusStr,
     );
   }
 

@@ -44,33 +44,31 @@ class CoursesProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    if (_repository is MockEduccaRepository || apiClient.config.isDemoMode) {
-      if (_repository != null) {
-        final result = await _repository!.getPromoterSessions();
-        result.when(
-          onSuccess: (data) {
-            if (data is List) {
-              _courses = data
-                  .map((item) => Course.fromJson(item as Map<String, dynamic>))
-                  .toList();
-            } else {
-              _courses = [];
-            }
-            _errorMessage = null;
-            _isLoading = false;
-            notifyListeners();
-          },
-          onFailure: (error, _) {
-            _errorMessage = error;
-            _isLoading = false;
-            notifyListeners();
-          },
-        );
-        return;
-      }
+    if (_repository != null) {
+      final result = await _repository!.getPromoterSessions();
+      result.when(
+        onSuccess: (data) {
+          if (data is List) {
+            _courses = data
+                .map((item) => Course.fromJson(item as Map<String, dynamic>))
+                .toList();
+          } else {
+            _courses = [];
+          }
+          _errorMessage = null;
+          _isLoading = false;
+          notifyListeners();
+        },
+        onFailure: (error, _) {
+          _errorMessage = error;
+          _isLoading = false;
+          notifyListeners();
+        },
+      );
+      return;
     }
 
-    final result = await apiClient.get('/student/courses');
+    final result = await apiClient.get('/sesiones');
 
     result.when(
       onSuccess: (data) {
@@ -93,7 +91,46 @@ class CoursesProvider extends ChangeNotifier {
     );
   }
 
-  /// Consulta las sesiones de un curso específico (/student/courses/:courseId/sessions).
+  /// Consulta las inscripciones activas del promotor (GET /api/v1/mi/inscripciones).
+  Future<void> fetchMyEnrollments() async {
+    if (_repository != null) {
+      final result = await _repository!.getMyEnrollments();
+      result.when(
+        onSuccess: (data) {
+          if (data is List) {
+            _courses = data
+                .map((item) => Course.fromJson(item as Map<String, dynamic>))
+                .toList();
+          }
+          notifyListeners();
+        },
+        onFailure: (error, _) {
+          // Si falla, conserva las sesiones ya cargadas
+        },
+      );
+    }
+  }
+
+  /// Inscribe al usuario autenticado a una sesión específica (POST /api/v1/sesiones/{id}/inscripciones).
+  Future<bool> enrollSession(int sessionId) async {
+    if (_repository != null) {
+      final result = await _repository!.enrollSession(sessionId);
+      return result.when(
+        onSuccess: (_) {
+          fetchCourses();
+          return true;
+        },
+        onFailure: (error, _) {
+          _errorMessage = error;
+          notifyListeners();
+          return false;
+        },
+      );
+    }
+    return false;
+  }
+
+  /// Consulta las sesiones de un curso o el detalle de una sesión específica (/api/v1/sesiones/:id).
   Future<void> fetchSessions(String courseId) async {
     _loadingSessions[courseId] = true;
     _sessionErrors[courseId] = null;
@@ -119,7 +156,7 @@ class CoursesProvider extends ChangeNotifier {
       return;
     }
 
-    final result = await apiClient.get('/student/courses/$courseId/sessions');
+    final result = await apiClient.get('/sesiones/$courseId');
 
     result.when(
       onSuccess: (data) {
@@ -127,6 +164,8 @@ class CoursesProvider extends ChangeNotifier {
           _sessions[courseId] = data
               .map((item) => CourseSession.fromJson(item as Map<String, dynamic>))
               .toList();
+        } else if (data is Map) {
+          _sessions[courseId] = [CourseSession.fromJson(data as Map<String, dynamic>)];
         } else {
           _sessions[courseId] = [];
         }

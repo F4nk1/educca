@@ -84,10 +84,18 @@ class AuthProvider extends ChangeNotifier {
 
       final loginSuccess = await result.when(
         onSuccess: (data) async {
-          if (data is Map && data['token'] != null) {
-            _token = data['token'].toString();
+          final tokenVal = (data is Map)
+              ? (data['access_token']?.toString() ?? data['token']?.toString())
+              : null;
 
-            if (data['user'] != null && data['user'] is Map) {
+          if (tokenVal != null && tokenVal.isNotEmpty) {
+            _token = tokenVal;
+
+            if (data is Map && data['refresh_token'] != null) {
+              await sessionStorage.saveRefreshToken(data['refresh_token'].toString());
+            }
+
+            if (data is Map && data['user'] != null && data['user'] is Map) {
               final userMap = data['user'] as Map<String, dynamic>;
               _currentPromoterUser = PromoterUser.fromJson(userMap);
               _currentUser = StudentUser.fromJson(userMap);
@@ -140,6 +148,12 @@ class AuthProvider extends ChangeNotifier {
     required String promoterCategory,
     required bool isAdult,
     required bool privacyConsentAccepted,
+    String? dni,
+    String? nombres,
+    String? apellidos,
+    String? sexo,
+    String? fechaNacimiento,
+    String? telefono,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -153,6 +167,12 @@ class AuthProvider extends ChangeNotifier {
         promoterCategory: promoterCategory,
         isAdult: isAdult,
         privacyConsentAccepted: privacyConsentAccepted,
+        dni: dni,
+        nombres: nombres,
+        apellidos: apellidos,
+        sexo: sexo,
+        fechaNacimiento: fechaNacimiento,
+        telefono: telefono,
       );
 
       final success = result.when(
@@ -179,6 +199,33 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = 'Error inesperado en el registro: $e';
       _isLoading = false;
       notifyListeners();
+      return false;
+    }
+  }
+
+  /// Intenta renovar la sesión activa utilizando el refresh_token almacenado.
+  Future<bool> refreshSession() async {
+    final refreshToken = await sessionStorage.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      final res = await _repository.refreshSession(refreshToken);
+      return await res.when(
+        onSuccess: (data) async {
+          if (data is Map && data['access_token'] != null) {
+            _token = data['access_token'].toString();
+            await sessionStorage.saveToken(_token!);
+            if (data['refresh_token'] != null) {
+              await sessionStorage.saveRefreshToken(data['refresh_token'].toString());
+            }
+            notifyListeners();
+            return true;
+          }
+          return false;
+        },
+        onFailure: (error, statusCode) async => false,
+      );
+    } catch (_) {
       return false;
     }
   }

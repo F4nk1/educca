@@ -60,6 +60,17 @@ class ApiClient {
           .get(uri, headers: headers)
           .timeout(const Duration(seconds: 10));
 
+      if (response.statusCode == 401 && requiresAuth) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          final retryHeaders = await _buildHeaders(requiresAuth: true);
+          final retryResponse = await _httpClient
+              .get(uri, headers: retryHeaders)
+              .timeout(const Duration(seconds: 10));
+          return _handleResponse(retryResponse);
+        }
+      }
+
       return _handleResponse(response);
     } on SocketException {
       return Result.failure(
@@ -92,6 +103,21 @@ class ApiClient {
           )
           .timeout(const Duration(seconds: 10));
 
+      if (response.statusCode == 401 && requiresAuth && endpoint != '/refresh') {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          final retryHeaders = await _buildHeaders(requiresAuth: true);
+          final retryResponse = await _httpClient
+              .post(
+                uri,
+                headers: retryHeaders,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(const Duration(seconds: 10));
+          return _handleResponse(retryResponse);
+        }
+      }
+
       return _handleResponse(response);
     } on SocketException {
       return Result.failure(
@@ -103,6 +129,76 @@ class ApiClient {
       );
     } catch (e) {
       return Result.failure('Error inesperado de comunicación: $e');
+    }
+  }
+
+  /// Realiza una petición DELETE.
+  Future<Result<dynamic>> delete(
+    String endpoint, {
+    bool requiresAuth = true,
+  }) async {
+    try {
+      final uri = _buildUri(endpoint);
+      final headers = await _buildHeaders(requiresAuth: requiresAuth);
+
+      final response = await _httpClient
+          .delete(uri, headers: headers)
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 401 && requiresAuth) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          final retryHeaders = await _buildHeaders(requiresAuth: true);
+          final retryResponse = await _httpClient
+              .delete(uri, headers: retryHeaders)
+              .timeout(const Duration(seconds: 10));
+          return _handleResponse(retryResponse);
+        }
+      }
+
+      return _handleResponse(response);
+    } on SocketException {
+      return Result.failure(
+        'No se pudo conectar con el servidor. Verifica tu conexión de red o la IP configurada.',
+      );
+    } on TimeoutException {
+      return Result.failure(
+        'Tiempo de espera agotado. El servidor tardó demasiado en responder.',
+      );
+    } catch (e) {
+      return Result.failure('Error inesperado de comunicación: $e');
+    }
+  }
+
+  /// Intenta renovar el token de acceso utilizando el refresh_token almacenado.
+  Future<bool> _tryRefreshToken() async {
+    try {
+      final refreshToken = await sessionStorage.getRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) return false;
+
+      final uri = _buildUri('/refresh');
+      final response = await _httpClient.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'refresh_token': refreshToken}),
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (decoded is Map && decoded['access_token'] != null) {
+          await sessionStorage.saveToken(decoded['access_token'].toString());
+          if (decoded['refresh_token'] != null) {
+            await sessionStorage.saveRefreshToken(decoded['refresh_token'].toString());
+          }
+          return true;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
