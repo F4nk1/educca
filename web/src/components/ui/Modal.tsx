@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
 import { X } from 'lucide-react';
 import styles from './Modal.module.css';
 
@@ -19,6 +19,8 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   size = 'md',
 }) => {
+  const titleId = useId();
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -38,12 +40,22 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <div className={styles.backdrop} onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={`${styles.modal} ${size === 'lg' ? styles.modalLg : ''}`}
         onClick={e => e.stopPropagation()}
       >
         <div className={styles.modalHeader}>
-          <h3 className={styles.title}>{title}</h3>
-          <button className={styles.closeButton} onClick={onClose} aria-label="Cerrar">
+          <h3 id={titleId} className={styles.title}>
+            {title}
+          </h3>
+          <button
+            type="button"
+            className={styles.closeButton}
+            onClick={onClose}
+            aria-label="Cerrar ventana"
+          >
             <X size={18} />
           </button>
         </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import styles from './Input.module.css';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -18,7 +18,8 @@ export const Input: React.FC<InputProps> = ({
   className = '',
   ...props
 }) => {
-  const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  const generatedId = useId();
+  const inputId = id || generatedId;
 
   return (
     <div className={styles.formGroup}>
@@ -32,6 +33,7 @@ export const Input: React.FC<InputProps> = ({
         {icon && <span className={styles.iconLeft}>{icon}</span>}
         <input
           id={inputId}
+          required={required}
           className={`${styles.input} ${icon ? styles.withIconLeft : ''} ${error ? styles.hasError : ''} ${className}`}
           {...props}
         />
@@ -60,7 +62,8 @@ export const Select: React.FC<SelectProps> = ({
   className = '',
   ...props
 }) => {
-  const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  const generatedId = useId();
+  const selectId = id || generatedId;
 
   return (
     <div className={styles.formGroup}>
@@ -72,6 +75,7 @@ export const Select: React.FC<SelectProps> = ({
       )}
       <select
         id={selectId}
+        required={required}
         className={`${styles.select} ${error ? styles.hasError : ''} ${className}`}
         {...props}
       >
@@ -104,7 +108,8 @@ export const Textarea: React.FC<TextareaProps> = ({
   className = '',
   ...props
 }) => {
-  const textareaId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  const generatedId = useId();
+  const textareaId = id || generatedId;
 
   return (
     <div className={styles.formGroup}>
@@ -116,6 +121,7 @@ export const Textarea: React.FC<TextareaProps> = ({
       )}
       <textarea
         id={textareaId}
+        required={required}
         className={`${styles.textarea} ${error ? styles.hasError : ''} ${className}`}
         {...props}
       />

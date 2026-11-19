@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   MapPin,
@@ -17,14 +17,20 @@ import { useAuth } from '../../hooks/useAuth';
 import styles from './Navbar.module.css';
 
 export const Navbar: React.FC = () => {
-  const { user, role, switchRole, logout, isDemoMode, toggleDemoMode } = useAuth();
+  const { user, isCoordinator, isTrainer, switchRole, logout, isDemoMode, toggleDemoMode } =
+    useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleRoleChange = (newRole: 'coordinador' | 'capacitador') => {
+  const isTrainerViewActive = location.pathname.startsWith('/trainer');
+  const showCoordinatorMenu = isCoordinator && !isTrainerViewActive;
+  const canSwitchView = isDemoMode || (isCoordinator && isTrainer);
+
+  const handleViewOrRoleChange = (target: 'coordinador' | 'capacitador') => {
     if (isDemoMode) {
-      switchRole(newRole);
+      switchRole(target);
     }
-    if (newRole === 'coordinador') {
+    if (target === 'coordinador') {
       navigate('/coordinator');
     } else {
       navigate('/trainer/qr');
@@ -36,13 +42,15 @@ export const Navbar: React.FC = () => {
     navigate('/login');
   };
 
-  const isCoordinator = role === 'coordinador' || (user?.roles && (user.roles.includes('admin') || user.roles.includes('coordinador')));
-
   return (
     <header className={styles.header}>
       <div className={styles.topBar}>
         <div className={styles.brandGroup}>
-          <NavLink to={isCoordinator ? '/coordinator' : '/trainer/qr'} className={styles.brand}>
+          <NavLink
+            to={isCoordinator ? '/coordinator' : '/trainer/qr'}
+            className={styles.brand}
+            title="Ir al inicio de EDUCCA Cusco"
+          >
             <div className={styles.logoIcon}>
               <Leaf size={18} />
             </div>
@@ -53,12 +61,14 @@ export const Navbar: React.FC = () => {
           </NavLink>
 
           {/* Horizontal Top Navigation */}
-          <nav className={styles.navLinks}>
-            {isCoordinator ? (
+          <nav className={styles.navLinks} aria-label="Navegación principal">
+            {showCoordinatorMenu ? (
               <>
                 <NavLink
                   to="/coordinator"
                   end
+                  title="Panel de Inicio"
+                  aria-label="Panel de Inicio"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -69,6 +79,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/venues"
+                  title="Sedes Georreferenciadas"
+                  aria-label="Sedes Georreferenciadas"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -79,6 +91,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/workshops"
+                  title="Catálogo de Talleres"
+                  aria-label="Catálogo de Talleres"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -89,6 +103,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/sessions"
+                  title="Sesiones Operativas"
+                  aria-label="Sesiones Operativas"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -99,6 +115,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/attendances"
+                  title="Consulta Global de Asistencias"
+                  aria-label="Consulta Global de Asistencias"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -109,6 +127,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/users"
+                  title="Directorio de Usuarios"
+                  aria-label="Directorio de Usuarios"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -121,6 +141,8 @@ export const Navbar: React.FC = () => {
               <>
                 <NavLink
                   to="/trainer/qr"
+                  title="Panel de Código QR"
+                  aria-label="Panel de Código QR"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -131,6 +153,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/trainer/attendances"
+                  title="Lista de Asistencias de Sesión"
+                  aria-label="Lista de Asistencias de Sesión"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -146,8 +170,13 @@ export const Navbar: React.FC = () => {
         <div className={styles.actionsGroup}>
           {/* Data Mode Indicator */}
           <button
+            type="button"
             onClick={() => toggleDemoMode(!isDemoMode)}
-            title={isDemoMode ? 'Modo Demo (Click para cambiar a Backend API)' : 'Modo API Real (Click para cambiar a Demo)'}
+            title={
+              isDemoMode
+                ? 'Modo Demo activo (Clic para cambiar a Backend Go Real)'
+                : 'Conectado a API Real Go (Clic para cambiar a Modo Demo)'
+            }
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -166,21 +195,32 @@ export const Navbar: React.FC = () => {
             <span>{isDemoMode ? 'Demo' : 'API Real'}</span>
           </button>
 
-          {/* Quick role switcher for testing view transitions */}
-          <div className={styles.roleSelector} title="Cambiar rol activo para demostración">
-            <button
-              className={`${styles.roleButton} ${isCoordinator ? styles.roleButtonActive : ''}`}
-              onClick={() => handleRoleChange('coordinador')}
+          {/* View / Role Switcher (only shown in Demo Mode or when user has both Coordinator & Trainer permissions) */}
+          {canSwitchView && (
+            <div
+              className={styles.roleSelector}
+              title={
+                isDemoMode
+                  ? 'Alternar rol en modo demostración'
+                  : 'Alternar entre módulo de Coordinación y Panel QR de Campo'
+              }
             >
-              Coordinador
-            </button>
-            <button
-              className={`${styles.roleButton} ${!isCoordinator ? styles.roleButtonActive : ''}`}
-              onClick={() => handleRoleChange('capacitador')}
-            >
-              Capacitador
-            </button>
-          </div>
+              <button
+                type="button"
+                className={`${styles.roleButton} ${showCoordinatorMenu ? styles.roleButtonActive : ''}`}
+                onClick={() => handleViewOrRoleChange('coordinador')}
+              >
+                Coordinador
+              </button>
+              <button
+                type="button"
+                className={`${styles.roleButton} ${!showCoordinatorMenu ? styles.roleButtonActive : ''}`}
+                onClick={() => handleViewOrRoleChange('capacitador')}
+              >
+                Capacitador
+              </button>
+            </div>
+          )}
 
           {user && (
             <div className={styles.userProfile}>
@@ -197,9 +237,11 @@ export const Navbar: React.FC = () => {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={handleLogout}
                 className={styles.navLink}
                 title="Cerrar sesión"
+                aria-label="Cerrar sesión"
                 style={{ padding: '6px', marginLeft: '4px' }}
               >
                 <LogOut size={16} />

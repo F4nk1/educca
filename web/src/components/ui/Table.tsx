@@ -1,19 +1,23 @@
 import React from 'react';
-import { Inbox } from 'lucide-react';
+import { Inbox, Loader2 } from 'lucide-react';
 import styles from './Table.module.css';
 
 interface TableProps {
   headers: React.ReactNode[];
   children: React.ReactNode;
   emptyMessage?: string;
+  loadingMessage?: string;
   isEmpty?: boolean;
+  isLoading?: boolean;
 }
 
 export const Table: React.FC<TableProps> = ({
   headers,
   children,
   emptyMessage = 'No se encontraron registros',
+  loadingMessage = 'Cargando registros...',
   isEmpty = false,
+  isLoading = false,
 }) => {
   return (
     <div className={styles.tableContainer}>
@@ -26,7 +30,16 @@ export const Table: React.FC<TableProps> = ({
           </tr>
         </thead>
         <tbody>
-          {isEmpty ? (
+          {isLoading ? (
+            <tr>
+              <td colSpan={headers.length}>
+                <div className={styles.emptyState}>
+                  <Loader2 size={28} className={`${styles.emptyIcon} animate-spin`} />
+                  <span>{loadingMessage}</span>
+                </div>
+              </td>
+            </tr>
+          ) : isEmpty ? (
             <tr>
               <td colSpan={headers.length}>
                 <div className={styles.emptyState}>
