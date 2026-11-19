@@ -137,38 +137,40 @@ export const Login: React.FC = () => {
               {isSubmitting ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingTop: '8px',
-                fontSize: '12px',
-                color: '#64748B',
-              }}
-            >
-              <span>Modo de conexión actual:</span>
-              <button
-                type="button"
-                onClick={() => toggleDemoMode(!isDemoMode)}
+            {import.meta.env.DEV && (
+              <div
                 style={{
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  padding: '3px 10px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  borderRadius: '9999px',
-                  backgroundColor: isDemoMode ? '#FEF3C7' : '#DCFCE7',
-                  color: isDemoMode ? '#92400E' : '#166534',
-                  border: `1px solid ${isDemoMode ? '#FDE68A' : '#BBF7D0'}`,
-                  cursor: 'pointer',
+                  justifyContent: 'space-between',
+                  paddingTop: '8px',
+                  fontSize: '12px',
+                  color: '#64748B',
                 }}
               >
-                {isDemoMode ? <Database size={12} /> : <Server size={12} />}
-                <span>{isDemoMode ? 'Modo Demo (Local)' : 'API Real (Go + PostgreSQL)'}</span>
-              </button>
-            </div>
+                <span>Modo de desarrollo:</span>
+                <button
+                  type="button"
+                  onClick={() => toggleDemoMode(!isDemoMode)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    borderRadius: '9999px',
+                    backgroundColor: isDemoMode ? '#FEF3C7' : '#DCFCE7',
+                    color: isDemoMode ? '#92400E' : '#166534',
+                    border: `1px solid ${isDemoMode ? '#FDE68A' : '#BBF7D0'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isDemoMode ? <Database size={12} /> : <Server size={12} />}
+                  <span>{isDemoMode ? 'Modo Demo (Local)' : 'API Real (Go + PostgreSQL)'}</span>
+                </button>
+              </div>
+            )}
           </form>
 
           <footer className={styles.formFooter}>

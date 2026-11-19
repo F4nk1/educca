@@ -10,32 +10,18 @@ import {
   QrCode,
   LogOut,
   Leaf,
-  Server,
-  Database,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './Navbar.module.css';
 
 export const Navbar: React.FC = () => {
-  const { user, isCoordinator, isTrainer, switchRole, logout, isDemoMode, toggleDemoMode } =
-    useAuth();
+  const { user, isCoordinator, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const isTrainerViewActive = location.pathname.startsWith('/trainer');
   const showCoordinatorMenu = isCoordinator && !isTrainerViewActive;
-  const canSwitchView = isDemoMode || (isCoordinator && isTrainer);
-
-  const handleViewOrRoleChange = (target: 'coordinador' | 'capacitador') => {
-    if (isDemoMode) {
-      switchRole(target);
-    }
-    if (target === 'coordinador') {
-      navigate('/coordinator');
-    } else {
-      navigate('/trainer/qr');
-    }
-  };
 
   const handleLogout = () => {
     logout();
@@ -139,6 +125,18 @@ export const Navbar: React.FC = () => {
               </>
             ) : (
               <>
+                {isCoordinator && (
+                  <NavLink
+                    to="/coordinator/sessions"
+                    title="Volver al Panel de Coordinación"
+                    aria-label="Volver al Panel de Coordinación"
+                    className={styles.navLink}
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Gestión</span>
+                  </NavLink>
+                )}
+
                 <NavLink
                   to="/trainer/qr"
                   title="Panel de Código QR"
@@ -168,60 +166,6 @@ export const Navbar: React.FC = () => {
         </div>
 
         <div className={styles.actionsGroup}>
-          {/* Data Mode Indicator */}
-          <button
-            type="button"
-            onClick={() => toggleDemoMode(!isDemoMode)}
-            title={
-              isDemoMode
-                ? 'Modo Demo activo (Clic para cambiar a Backend Go Real)'
-                : 'Conectado a API Real Go (Clic para cambiar a Modo Demo)'
-            }
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '3px 8px',
-              fontSize: '11px',
-              fontWeight: 600,
-              borderRadius: '9999px',
-              backgroundColor: isDemoMode ? '#FEF3C7' : '#DCFCE7',
-              color: isDemoMode ? '#92400E' : '#166534',
-              border: `1px solid ${isDemoMode ? '#FDE68A' : '#BBF7D0'}`,
-              cursor: 'pointer',
-            }}
-          >
-            {isDemoMode ? <Database size={12} /> : <Server size={12} />}
-            <span>{isDemoMode ? 'Demo' : 'API Real'}</span>
-          </button>
-
-          {/* View / Role Switcher (only shown in Demo Mode or when user has both Coordinator & Trainer permissions) */}
-          {canSwitchView && (
-            <div
-              className={styles.roleSelector}
-              title={
-                isDemoMode
-                  ? 'Alternar rol en modo demostración'
-                  : 'Alternar entre módulo de Coordinación y Panel QR de Campo'
-              }
-            >
-              <button
-                type="button"
-                className={`${styles.roleButton} ${showCoordinatorMenu ? styles.roleButtonActive : ''}`}
-                onClick={() => handleViewOrRoleChange('coordinador')}
-              >
-                Coordinador
-              </button>
-              <button
-                type="button"
-                className={`${styles.roleButton} ${!showCoordinatorMenu ? styles.roleButtonActive : ''}`}
-                onClick={() => handleViewOrRoleChange('capacitador')}
-              >
-                Capacitador
-              </button>
-            </div>
-          )}
-
           {user && (
             <div className={styles.userProfile}>
               <div className={styles.avatar}>

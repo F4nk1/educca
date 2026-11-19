@@ -41,7 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .finally(() => setIsLoading(false));
   }, [logout]);
 
-  const login = async (identificador: string, password?: string, demoRole?: UserRole): Promise<User> => {
+  const login = async (
+    identificador: string,
+    password?: string,
+    demoRole?: UserRole
+  ): Promise<User> => {
     const loggedUser = await authService.login(identificador, password, demoRole);
     setUser(loggedUser);
     return loggedUser;
@@ -89,7 +93,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const isReadOnly = Boolean(
-    user && user.rol === 'consulta' && !user.roles?.includes('admin') && !user.roles?.includes('coordinador')
+    user &&
+      user.rol === 'consulta' &&
+      !user.roles?.includes('admin') &&
+      !user.roles?.includes('coordinador')
   );
 
   const hasPermission = useCallback(
