@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -76,7 +75,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   Widget build(BuildContext context) {
     final config = context.watch<AppConfig>();
-    final isDemoMode = kDebugMode && config.isDemoMode;
+    final isDemoMode = config.isDemoMode;
 
     return Scaffold(
       backgroundColor: AndeanColors.cream,
