@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../config/app_config.dart';
 import 'demo_tour_sheet.dart';
@@ -138,7 +137,7 @@ class _ServerConfigDialogState extends State<ServerConfigDialog> {
                     _controller.text = AppConfig.defaultBaseUrl;
                   },
                 ),
-                if (kDebugMode && _demoMode)
+                if (_demoMode)
                   ActionChip(
                     avatar: const Icon(Icons.slideshow, size: 14, color: Colors.deepOrange),
                     label: const Text('Recorrido Demo', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),

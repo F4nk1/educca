@@ -23,6 +23,7 @@ node_modules/
 web/node_modules/
 dist/
 web/dist/
+.vite/
 
 # IDEs and OS files
 .vscode/

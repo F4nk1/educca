@@ -360,6 +360,43 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                 ),
                               ),
+                              SizedBox(height: isCompact ? 10 : 12),
+
+                              // Botón secundario para acceso directo a Datos Simulados
+                              SizedBox(
+                                width: double.infinity,
+                                height: isCompact ? 44 : 48,
+                                child: OutlinedButton.icon(
+                                  key: const Key('demoModeQuickButton'),
+                                  icon: const Icon(Icons.science_outlined, size: 18, color: AndeanColors.forest),
+                                  label: Text(
+                                    config.isDemoMode
+                                        ? 'Ingresar con Datos Simulados'
+                                        : 'Modo Demostración (Datos Simulados)',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: AndeanColors.forest,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: AndeanColors.forest, width: 1.2),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  onPressed: auth.isLoading
+                                      ? null
+                                      : () async {
+                                          if (!config.isDemoMode) {
+                                            await config.setDemoMode(true);
+                                          }
+                                          _emailController.text = 'sayri.promotor@educca.gob.pe';
+                                          _passwordController.text = 'demo1234';
+                                          _submit();
+                                        },
+                                ),
+                              ),
                             ],
                           ),
                         ),

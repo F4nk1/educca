@@ -243,16 +243,17 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await apiClient.post('/auth/logout');
-    } catch (_) {
-      // Ignora error si el backend está caído durante logout
-    } finally {
-      await sessionStorage.clearSession();
       _token = null;
       _currentUser = null;
       _currentPromoterUser = null;
       _errorMessage = null;
       _status = AuthStatus.unauthenticated;
+      try {
+        await sessionStorage.clearSession();
+      } catch (_) {
+        // Ignora posibles excepciones de Android Keystore durante clearSession
+      }
+    } finally {
       _isLoading = false;
       notifyListeners();
     }

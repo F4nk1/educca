@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'config/app_config.dart';
@@ -35,7 +34,7 @@ void main() async {
   final apiRepo = ApiEduccaRepository(apiClient: apiClient);
   final mockRepo = MockEduccaRepository();
 
-  final initialRepo = (kDebugMode && appConfig.isDemoMode) ? mockRepo : apiRepo;
+  final initialRepo = appConfig.isDemoMode ? mockRepo : apiRepo;
 
   authProvider = AuthProvider(
     apiClient: apiClient,
@@ -54,7 +53,7 @@ void main() async {
 
   // Escucha cambios en AppConfig para alternar en caliente entre API real y Mock Demo
   appConfig.addListener(() {
-    final activeRepo = (kDebugMode && appConfig.isDemoMode) ? mockRepo : apiRepo;
+    final activeRepo = appConfig.isDemoMode ? mockRepo : apiRepo;
     authProvider.setRepository(activeRepo);
     coursesProvider.setRepository(activeRepo);
     attendanceProvider.setRepository(activeRepo);
