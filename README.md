@@ -1,10 +1,6 @@
 <a id="readme-top"></a>
 
 <div align="center">
-  <img src=".github/assets/banner.svg" alt="EDUCCA Cusco — EcoCapacita" width="100%" />
-
-  <br />
-  <br />
 
   <p>
     <strong>Sistema integral de gestión operativa, seguimiento en tiempo real y control de asistencia geolocalizada</strong><br />
