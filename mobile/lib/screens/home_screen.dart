@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/courses_provider.dart';
 import 'attendance_history_screen.dart';
 import 'courses_screen.dart';
+import 'login_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'widgets/andean_widgets.dart';
 import 'widgets/demo_tour_sheet.dart';
@@ -84,6 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirmed == true && context.mounted) {
       await context.read<AuthProvider>().logout();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
     }
   }
 
@@ -588,7 +594,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (kDebugMode && config.isDemoMode) ...[
+                if (config.isDemoMode) ...[
                   ElevatedButton.icon(
                     key: const Key('demoTourButton'),
                     onPressed: () => DemoTourSheet.show(context),
