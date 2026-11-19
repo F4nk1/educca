@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { venueService } from '../../services/venueService';
 import { Venue, VenueType } from '../../models/types';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -25,10 +26,14 @@ export const VenuesList: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal state
+  // Create / Edit Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Delete confirmation modal state
+  const [deletingVenue, setDeletingVenue] = useState<Venue | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state
   const [formNombre, setFormNombre] = useState('');
@@ -38,6 +43,8 @@ export const VenuesList: React.FC = () => {
   const [formLng, setFormLng] = useState('-71.9839');
   const [formRadio, setFormRadio] = useState('80');
   const [formError, setFormError] = useState<string | null>(null);
+
+  const { isReadOnly } = useAuth();
 
   useEffect(() => {
     loadVenues();
@@ -49,8 +56,8 @@ export const VenuesList: React.FC = () => {
     try {
       const data = await venueService.getVenues();
       setVenues(data);
-    } catch (err: any) {
-      setError(err?.message || 'Error al cargar las sedes');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cargar las sedes');
     } finally {
       setIsLoading(false);
     }
@@ -87,16 +94,24 @@ export const VenuesList: React.FC = () => {
       return;
     }
     if (!formDireccion.trim()) {
-      setFormError('La dirección es obligatoria');
+      setFormError('La dirección o sector de ubicación es obligatorio');
       return;
     }
 
     const lat = parseFloat(formLat);
     const lng = parseFloat(formLng);
-    const radio = parseInt(formRadio, 10) || 80;
+    const radio = parseInt(formRadio, 10);
 
-    if (isNaN(lat) || isNaN(lng)) {
-      setFormError('Las coordenadas geográficas deben ser números válidos');
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      setFormError('La latitud debe ser un número válido entre -90 y 90');
+      return;
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      setFormError('La longitud debe ser un número válido entre -180 y 180');
+      return;
+    }
+    if (isNaN(radio) || radio <= 0 || radio > 5000) {
+      setFormError('El radio de geocerca debe ser mayor a 0 metros (recomendado: 80 m)');
       return;
     }
 
@@ -105,8 +120,8 @@ export const VenuesList: React.FC = () => {
     try {
       if (editingVenue) {
         await venueService.updateVenue(editingVenue.id, {
-          nombre: formNombre,
-          direccion: formDireccion,
+          nombre: formNombre.trim(),
+          direccion: formDireccion.trim(),
           tipo: formTipo,
           latitud: lat,
           longitud: lng,
@@ -114,8 +129,8 @@ export const VenuesList: React.FC = () => {
         });
       } else {
         await venueService.createVenue({
-          nombre: formNombre,
-          direccion: formDireccion,
+          nombre: formNombre.trim(),
+          direccion: formDireccion.trim(),
           tipo: formTipo,
           latitud: lat,
           longitud: lng,
@@ -125,20 +140,25 @@ export const VenuesList: React.FC = () => {
 
       setIsModalOpen(false);
       await loadVenues();
-    } catch (err: any) {
-      setFormError(err?.message || 'Error al guardar la sede en el backend');
+    } catch (err: unknown) {
+      setFormError(err instanceof Error ? err.message : 'Error al guardar la sede en el backend');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteVenue = async (id: string) => {
-    if (!window.confirm('¿Está seguro de eliminar esta sede georreferenciada?')) return;
+  const handleConfirmDeleteVenue = async () => {
+    if (!deletingVenue) return;
+    setIsDeleting(true);
     try {
-      await venueService.deleteVenue(id);
+      await venueService.deleteVenue(deletingVenue.id);
+      setDeletingVenue(null);
       await loadVenues();
-    } catch (err: any) {
-      alert(err?.message || 'Error al eliminar la sede');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al eliminar la sede');
+      setDeletingVenue(null);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -159,13 +179,15 @@ export const VenuesList: React.FC = () => {
             Catálogo de mercados, centros de valorización y recintos autorizados en PostgreSQL
           </p>
         </div>
-        <Button
-          variant="primary"
-          icon={<Plus size={16} />}
-          onClick={handleOpenCreateModal}
-        >
-          Nueva Sede
-        </Button>
+        {!isReadOnly && (
+          <Button
+            variant="primary"
+            icon={<Plus size={16} />}
+            onClick={handleOpenCreateModal}
+          >
+            Nueva Sede
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -226,16 +248,24 @@ export const VenuesList: React.FC = () => {
           'Tipo',
           'Dirección / Sector',
           'Geolocalización',
-          'Radio Geocerca',
-          'Estado',
-          'Acciones',
+          'Geocerca GPS',
+          ...(isReadOnly ? [] : ['Acciones']),
         ]}
+        isLoading={isLoading}
         isEmpty={!isLoading && filteredVenues.length === 0}
       >
         {filteredVenues.map(venue => (
           <tr key={venue.id}>
             <td>
-              <div style={{ fontWeight: 600, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  color: '#1E293B',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
                 <MapPin size={16} color="#176B53" />
                 {venue.nombre}
               </div>
@@ -253,33 +283,32 @@ export const VenuesList: React.FC = () => {
               </span>
             </td>
             <td>
-              <span style={{ fontWeight: 500 }}>{venue.radioMetros} m</span>
-            </td>
-            <td>
               <Badge variant="success" withDot>
-                Activo
+                Radio {venue.radioMetros} m
               </Badge>
             </td>
-            <td>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleOpenEditModal(venue)}
-                  title="Editar sede"
-                >
-                  <Edit2 size={13} />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleDeleteVenue(venue.id)}
-                  title="Eliminar sede"
-                >
-                  <Trash2 size={14} color="#DC2626" />
-                </Button>
-              </div>
-            </td>
+            {!isReadOnly && (
+              <td>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleOpenEditModal(venue)}
+                    title="Editar sede"
+                  >
+                    <Edit2 size={13} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDeletingVenue(venue)}
+                    title="Eliminar sede"
+                  >
+                    <Trash2 size={14} color="#DC2626" />
+                  </Button>
+                </div>
+              </td>
+            )}
           </tr>
         ))}
       </Table>
@@ -288,13 +317,18 @@ export const VenuesList: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingVenue ? 'Editar Sede' : 'Registrar Nueva Sede'}
+        title={editingVenue ? 'Editar Sede Georreferenciada' : 'Registrar Nueva Sede'}
         footer={
           <>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleSaveVenue} disabled={isSubmitting}>
+            <Button type="submit" form="venue-form" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" /> Guardando...
@@ -308,7 +342,7 @@ export const VenuesList: React.FC = () => {
           </>
         }
       >
-        <form onSubmit={handleSaveVenue}>
+        <form id="venue-form" onSubmit={handleSaveVenue}>
           {formError && (
             <div
               style={{
@@ -347,23 +381,31 @@ export const VenuesList: React.FC = () => {
           >
             <option value="MERCADO">MERCADO (Mercado de abastos)</option>
             <option value="CENTRO_ACOPIO">CENTRO_ACOPIO (Planta de valorización)</option>
-            <option value="INSTITUCION_PUBLICA">INSTITUCION_PUBLICA (Palacio municipal / auditorio)</option>
+            <option value="INSTITUCION_PUBLICA">
+              INSTITUCION_PUBLICA (Palacio municipal / auditorio)
+            </option>
             <option value="ESPACIO_PUBLICO_EPEA">ESPACIO_PUBLICO_EPEA (Plaza o parque)</option>
             <option value="ORGANIZACION_SOCIAL">ORGANIZACION_SOCIAL</option>
             <option value="COLEGIO">COLEGIO (Institución educativa)</option>
-            <option value="EDUCACION_SUPERIOR">EDUCACION_SUPERIOR (Universidad / Instituto)</option>
+            <option value="EDUCACION_SUPERIOR">
+              EDUCACION_SUPERIOR (Universidad / Instituto)
+            </option>
           </Select>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Input
-              label="Latitud"
+              label="Latitud (-90 a 90)"
+              type="number"
+              step="any"
               value={formLat}
               onChange={e => setFormLat(e.target.value)}
               placeholder="-13.5186"
               required
             />
             <Input
-              label="Longitud"
+              label="Longitud (-180 a 180)"
+              type="number"
+              step="any"
               value={formLng}
               onChange={e => setFormLng(e.target.value)}
               placeholder="-71.9839"
@@ -374,12 +416,46 @@ export const VenuesList: React.FC = () => {
           <Input
             label="Radio geocerca (metros)"
             type="number"
+            min="10"
+            max="5000"
             value={formRadio}
             onChange={e => setFormRadio(e.target.value)}
             helper="Estándar EDUCCA para validación Haversine: 80 m"
             required
           />
         </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(deletingVenue)}
+        onClose={() => setDeletingVenue(null)}
+        title="Confirmar Eliminación de Sede"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeletingVenue(null)}
+              disabled={isDeleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleConfirmDeleteVenue}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Eliminando...' : 'Eliminar Sede'}
+            </Button>
+          </>
+        }
+      >
+        <p style={{ fontSize: '13px', color: '#334155' }}>
+          ¿Está seguro de eliminar la sede georreferenciada{' '}
+          <strong>{deletingVenue?.nombre}</strong>? Esta acción no se puede deshacer.
+        </p>
       </Modal>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Download,
   Search,
@@ -8,13 +8,20 @@ import {
   Edit3,
   Calendar,
   FileSpreadsheet,
-  FileText,
+  Printer,
   ShieldCheck,
   AlertCircle,
   Loader2,
 } from 'lucide-react';
 import { attendanceService } from '../../services/attendanceService';
-import { AttendanceRecord, AttendanceStatus } from '../../models/types';
+import { workshopService } from '../../services/workshopService';
+import {
+  AttendanceRecord,
+  AttendanceStatus,
+  AttendanceParticipation,
+  SessionItem,
+} from '../../models/types';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -25,19 +32,36 @@ import styles from './GlobalAttendances.module.css';
 
 export const GlobalAttendances: React.FC = () => {
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
-  const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sessionFilter, setSessionFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Selected record editable fields
+  const [editParticipacion, setEditParticipacion] =
+    useState<AttendanceParticipation>('ASISTENTE');
+  const [editCalificacion, setEditCalificacion] = useState<string>('');
 
   // Export modal state
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'csv' | 'pdf'>('csv');
   const [exportSuccess, setExportSuccess] = useState(false);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSesionId = searchParams.get('sesionId');
+
+  const { isReadOnly } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (urlSesionId) {
+      setSessionFilter(urlSesionId.replace('ses-', '').replace('ws-', ''));
+    }
+  }, [urlSesionId]);
 
   useEffect(() => {
     loadAttendances();
@@ -47,72 +71,126 @@ export const GlobalAttendances: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const list = await attendanceService.getAttendances();
+      const [list, loadedSessions] = await Promise.all([
+        attendanceService.getAttendances(),
+        workshopService.getSessions().catch(() => [] as SessionItem[]),
+      ]);
       setAttendances(list);
-      if (list.length > 0 && !selectedRecord) {
-        setSelectedRecord(list[0]);
+      setSessions(loadedSessions);
+      if (list.length > 0 && !selectedRecordId) {
+        setSelectedRecordId(list[0].id);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Error al consultar las asistencias consolidadas');
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Error al consultar las asistencias consolidadas'
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleUpdateStatus = async (record: AttendanceRecord, newStatus: AttendanceStatus) => {
-    try {
-      const updated = await attendanceService.updateAttendanceStatus(
-        record.id,
-        newStatus,
-        'Actualización por coordinador',
-        record.sesionId,
-        record.participanteId
-      );
-      if (updated) {
-        setSelectedRecord(updated);
-      }
-      await loadAttendances();
-    } catch (err: any) {
-      alert(err?.message || 'Error al actualizar el estado de asistencia');
-    }
-  };
-
-  const handleExport = () => {
-    const csvData = attendanceService.exportToCSV(filteredAttendances);
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `asistencias-educca-cusco-${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setExportSuccess(true);
-  };
-
   const filteredAttendances = attendances.filter(a => {
+    const cleanSesionId = a.sesionId.replace('ses-', '').replace('ws-', '');
+    const cleanFilterId = sessionFilter.replace('ses-', '').replace('ws-', '');
+    const matchesSession = sessionFilter === 'ALL' || cleanSesionId === cleanFilterId;
+
     const matchesSearch =
       a.participanteNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       a.participanteDni.includes(searchTerm) ||
       a.tallerNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       a.sedeNombre.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || a.estado === statusFilter;
-    const matchesCategory = categoryFilter === 'ALL' || a.participanteCategoria === categoryFilter;
-    return matchesSearch && matchesStatus && matchesCategory;
+    const matchesCategory =
+      categoryFilter === 'ALL' || a.participanteCategoria === categoryFilter;
+    return matchesSession && matchesSearch && matchesStatus && matchesCategory;
   });
 
-  const totalPresent = attendances.filter(a => a.estado === 'PRESENTE').length;
-  const totalPending = attendances.filter(a => a.estado === 'PENDIENTE').length;
-  const totalExcused = attendances.filter(a => a.estado === 'JUSTIFICADO').length;
+  const selectedRecord =
+    filteredAttendances.find(r => r.id === selectedRecordId) ||
+    filteredAttendances[0] ||
+    null;
+
+  useEffect(() => {
+    if (selectedRecord) {
+      setEditParticipacion(selectedRecord.participacion || 'ASISTENTE');
+      setEditCalificacion(
+        selectedRecord.calificacion !== undefined ? selectedRecord.calificacion.toString() : ''
+      );
+    }
+  }, [selectedRecord?.id]);
+
+  const handleUpdateStatus = async (record: AttendanceRecord, newStatus: AttendanceStatus) => {
+    setIsUpdating(true);
+    setError(null);
+    try {
+      const calNum = editCalificacion.trim() !== '' ? parseFloat(editCalificacion) : undefined;
+      if (calNum !== undefined && (isNaN(calNum) || calNum < 0 || calNum > 20)) {
+        setError('La calificación debe estar entre 0 y 20');
+        setIsUpdating(false);
+        return;
+      }
+
+      const updated = await attendanceService.updateAttendanceStatus(
+        record.id,
+        newStatus,
+        'Actualización por coordinador',
+        record.sesionId,
+        record.participanteId,
+        {
+          participacion: editParticipacion,
+          calificacion: calNum,
+        }
+      );
+      await loadAttendances();
+      if (updated) {
+        setSelectedRecordId(updated.id);
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Error al actualizar el estado de asistencia'
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    const csvData = attendanceService.exportToCSV(filteredAttendances);
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute(
+      'download',
+      `asistencias-educca-cusco-${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setExportSuccess(true);
+  };
+
+  const totalPresent = filteredAttendances.filter(a => a.estado === 'PRESENTE').length;
+  const totalPending = filteredAttendances.filter(a => a.estado === 'PENDIENTE').length;
+  const totalQRVerified = filteredAttendances.filter(
+    a => a.estado === 'PRESENTE' && a.metodo === 'QR_GPS'
+  ).length;
 
   const getStatusBadge = (estado: AttendanceStatus) => {
     switch (estado) {
       case 'PRESENTE':
-        return <Badge variant="success" withDot>Presente</Badge>;
+        return (
+          <Badge variant="success" withDot>
+            Presente
+          </Badge>
+        );
       case 'PENDIENTE':
-        return <Badge variant="warning" withDot>Pendiente</Badge>;
-      case 'JUSTIFICADO':
-        return <Badge variant="info" withDot>Justificado</Badge>;
+        return (
+          <Badge variant="warning" withDot>
+            Pendiente
+          </Badge>
+        );
       default:
         return <Badge variant="neutral">{estado}</Badge>;
     }
@@ -127,13 +205,20 @@ export const GlobalAttendances: React.FC = () => {
             Seguimiento de concurrencia ciudadana, verificación de geocerca (80 m) y conciliación
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Button
             variant="outline"
             icon={<Calendar size={16} />}
             onClick={() => navigate('/coordinator/sessions')}
           >
             Ver Sesiones
+          </Button>
+          <Button
+            variant="outline"
+            icon={<Printer size={16} />}
+            onClick={() => window.print()}
+          >
+            Imprimir Acta
           </Button>
           <Button
             variant="primary"
@@ -143,7 +228,7 @@ export const GlobalAttendances: React.FC = () => {
               setExportSuccess(false);
             }}
           >
-            Exportar Asistencias
+            Exportar CSV
           </Button>
         </div>
       </div>
@@ -163,7 +248,12 @@ export const GlobalAttendances: React.FC = () => {
         >
           <AlertCircle size={18} />
           <span>{error}</span>
-          <Button size="sm" variant="outline" onClick={loadAttendances} style={{ marginLeft: 'auto' }}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={loadAttendances}
+            style={{ marginLeft: 'auto' }}
+          >
             Reintentar
           </Button>
         </div>
@@ -173,9 +263,13 @@ export const GlobalAttendances: React.FC = () => {
       <div className={styles.summaryCards}>
         <div className={styles.summaryCard}>
           <span className={styles.summaryNumber} style={{ color: '#176B53' }}>
-            {isLoading ? <Loader2 size={20} className="animate-spin" /> : attendances.length}
+            {isLoading ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              filteredAttendances.length
+            )}
           </span>
-          <span className={styles.summaryLabel}>Total Registros</span>
+          <span className={styles.summaryLabel}>Total Registros (Filtro)</span>
         </div>
         <div className={styles.summaryCard}>
           <span className={styles.summaryNumber} style={{ color: '#16A34A' }}>
@@ -191,9 +285,9 @@ export const GlobalAttendances: React.FC = () => {
         </div>
         <div className={styles.summaryCard}>
           <span className={styles.summaryNumber} style={{ color: '#0284C7' }}>
-            {isLoading ? <Loader2 size={20} className="animate-spin" /> : totalExcused}
+            {isLoading ? <Loader2 size={20} className="animate-spin" /> : totalQRVerified}
           </span>
-          <span className={styles.summaryLabel}>Inasistencias Justificadas</span>
+          <span className={styles.summaryLabel}>Verificados con QR + GPS</span>
         </div>
       </div>
 
@@ -211,7 +305,34 @@ export const GlobalAttendances: React.FC = () => {
               />
             </div>
 
-            <div style={{ minWidth: '150px' }}>
+            <div style={{ minWidth: '170px' }}>
+              <Select
+                value={sessionFilter}
+                onChange={e => {
+                  const val = e.target.value;
+                  setSessionFilter(val);
+                  if (val === 'ALL') {
+                    searchParams.delete('sesionId');
+                  } else {
+                    searchParams.set('sesionId', val);
+                  }
+                  setSearchParams(searchParams);
+                }}
+                style={{ marginBottom: 0 }}
+              >
+                <option value="ALL">Todas las sesiones</option>
+                {sessions.map(s => {
+                  const cleanId = s.id.replace('ses-', '');
+                  return (
+                    <option key={s.id} value={cleanId}>
+                      {s.tallerNombre} ({s.fecha})
+                    </option>
+                  );
+                })}
+              </Select>
+            </div>
+
+            <div style={{ minWidth: '140px' }}>
               <Select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
@@ -220,7 +341,6 @@ export const GlobalAttendances: React.FC = () => {
                 <option value="ALL">Todos los estados</option>
                 <option value="PRESENTE">Presente</option>
                 <option value="PENDIENTE">Pendiente</option>
-                <option value="JUSTIFICADO">Justificado</option>
               </Select>
             </div>
 
@@ -240,7 +360,8 @@ export const GlobalAttendances: React.FC = () => {
           </div>
 
           <Table
-            headers={['DNI', 'Participante', 'Taller / Sede', 'Hora', 'Estado']}
+            headers={['DNI', 'Participante', 'Taller / Sede', 'Hora / Nota', 'Estado']}
+            isLoading={isLoading}
             isEmpty={!isLoading && filteredAttendances.length === 0}
           >
             {filteredAttendances.map(record => {
@@ -248,7 +369,15 @@ export const GlobalAttendances: React.FC = () => {
               return (
                 <tr
                   key={record.id}
-                  onClick={() => setSelectedRecord(record)}
+                  tabIndex={0}
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedRecordId(record.id)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedRecordId(record.id);
+                    }
+                  }}
                   style={{
                     cursor: 'pointer',
                     backgroundColor: isSelected ? '#F0F7F4' : undefined,
@@ -262,14 +391,21 @@ export const GlobalAttendances: React.FC = () => {
                       {record.participanteNombre}
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748B' }}>
-                      {record.participanteCategoria}
+                      {record.participanteCategoria} • {record.participacion}
                     </div>
                   </td>
                   <td>
                     <div style={{ fontSize: '13px', color: '#1E293B' }}>{record.tallerNombre}</div>
                     <div style={{ fontSize: '11px', color: '#64748B' }}>{record.sedeNombre}</div>
                   </td>
-                  <td style={{ color: '#475569', fontSize: '12px' }}>{record.horaMarcado}</td>
+                  <td style={{ color: '#475569', fontSize: '12px' }}>
+                    <div>{record.horaMarcado}</div>
+                    {record.calificacion !== undefined && (
+                      <div style={{ fontSize: '11px', color: '#176B53', fontWeight: 600 }}>
+                        Nota: {record.calificacion}/20
+                      </div>
+                    )}
+                  </td>
                   <td>{getStatusBadge(record.estado)}</td>
                 </tr>
               );
@@ -325,7 +461,10 @@ export const GlobalAttendances: React.FC = () => {
                 </div>
                 <div className={styles.detailRow}>
                   <span className={styles.detailLabel}>Método:</span>
-                  <span className={styles.detailValue} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span
+                    className={styles.detailValue}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
                     {selectedRecord.metodo === 'QR_GPS' ? (
                       <>
                         <QrCode size={13} color="#176B53" /> QR Dinámico + GPS
@@ -340,19 +479,31 @@ export const GlobalAttendances: React.FC = () => {
                 {selectedRecord.distanciaMetros !== undefined && (
                   <div className={styles.detailRow}>
                     <span className={styles.detailLabel}>Distancia Sede:</span>
-                    <span className={styles.detailValue} style={{ color: '#16A34A', fontWeight: 600 }}>
+                    <span
+                      className={styles.detailValue}
+                      style={{ color: '#16A34A', fontWeight: 600 }}
+                    >
                       {selectedRecord.distanciaMetros} m (Geocerca: 80 m)
                     </span>
                   </div>
                 )}
                 <div className={styles.detailRow}>
                   <span className={styles.detailLabel}>Estado:</span>
-                  <span className={styles.detailValue}>{getStatusBadge(selectedRecord.estado)}</span>
+                  <span className={styles.detailValue}>
+                    {getStatusBadge(selectedRecord.estado)}
+                  </span>
                 </div>
 
                 {selectedRecord.observaciones && (
-                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#64748B', fontStyle: 'italic' }}>
-                    "{selectedRecord.observaciones}"
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      fontSize: '12px',
+                      color: '#64748B',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    &ldquo;{selectedRecord.observaciones}&rdquo;
                   </div>
                 )}
 
@@ -364,30 +515,75 @@ export const GlobalAttendances: React.FC = () => {
                 )}
               </div>
 
-              {/* Status Change Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-                <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>
-                  Acción de Conciliación
-                </span>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <Button
-                    size="sm"
-                    variant={selectedRecord.estado === 'PRESENTE' ? 'secondary' : 'primary'}
-                    onClick={() => handleUpdateStatus(selectedRecord, 'PRESENTE')}
-                    style={{ flex: 1 }}
+              {/* Conciliation & Evaluation Controls */}
+              {!isReadOnly && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    marginTop: '16px',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: '#64748B',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                    }}
                   >
-                    Confirmar Presente
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleUpdateStatus(selectedRecord, 'PENDIENTE')}
-                    style={{ flex: 1 }}
+                    Conciliación y Calificación
+                  </span>
+
+                  <Select
+                    label="Tipo de participación"
+                    value={editParticipacion}
+                    onChange={e =>
+                      setEditParticipacion(e.target.value as AttendanceParticipation)
+                    }
                   >
-                    Revertir
-                  </Button>
+                    <option value="ASISTENTE">ASISTENTE</option>
+                    <option value="VOLUNTARIO_REPLICA">VOLUNTARIO_REPLICA</option>
+                    <option value="PONENTE">PONENTE</option>
+                  </Select>
+
+                  <Input
+                    label="Calificación (0 a 20, opcional)"
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={editCalificacion}
+                    onChange={e => setEditCalificacion(e.target.value)}
+                    placeholder="Ej. 18"
+                  />
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      disabled={isUpdating}
+                      onClick={() => handleUpdateStatus(selectedRecord, 'PRESENTE')}
+                      style={{ flex: 1 }}
+                    >
+                      {selectedRecord.estado === 'PRESENTE'
+                        ? 'Guardar Nota / Rol'
+                        : 'Confirmar Presente'}
+                    </Button>
+                    {selectedRecord.estado === 'PRESENTE' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isUpdating}
+                        onClick={() => handleUpdateStatus(selectedRecord, 'PENDIENTE')}
+                      >
+                        Revertir
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </Card>
           </div>
         ) : null}
@@ -397,7 +593,7 @@ export const GlobalAttendances: React.FC = () => {
       <Modal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-        title="Exportar Registro de Asistencias"
+        title="Exportar Padrón de Asistencias (CSV)"
         footer={
           exportSuccess ? (
             <Button onClick={() => setIsExportOpen(false)}>Cerrar</Button>
@@ -406,7 +602,7 @@ export const GlobalAttendances: React.FC = () => {
               <Button variant="outline" onClick={() => setIsExportOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleExport} icon={<Download size={14} />}>
+              <Button onClick={handleExportCSV} icon={<Download size={14} />}>
                 Generar y Descargar CSV
               </Button>
             </>
@@ -418,75 +614,50 @@ export const GlobalAttendances: React.FC = () => {
             <CheckCircle2 size={48} color="#16A34A" style={{ margin: '0 auto 12px' }} />
             <h4 style={{ marginBottom: '8px' }}>Archivo Exportado con Éxito</h4>
             <p style={{ color: '#64748B', fontSize: '13px' }}>
-              Se ha descargado el archivo CSV con {filteredAttendances.length} registros listos para auditoría municipal.
+              Se ha descargado el archivo CSV con {filteredAttendances.length} registros listos
+              para auditoría municipal.
             </p>
           </div>
         ) : (
           <div>
             <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px' }}>
-              Seleccione el formato para exportar el consolidado de asistencias de los participantes del Programa EDUCCA Cusco.
+              Se generará el archivo CSV oficial con sanitización de fórmulas para Excel y hojas de
+              cálculo municipales.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px',
-                  border: `1px solid ${exportFormat === 'csv' ? '#176B53' : '#E2E8F0'}`,
-                  borderRadius: '8px',
-                  backgroundColor: exportFormat === 'csv' ? '#F0F7F4' : '#FFFFFF',
-                  cursor: 'pointer',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="format"
-                  value="csv"
-                  checked={exportFormat === 'csv'}
-                  onChange={() => setExportFormat('csv')}
-                />
-                <FileSpreadsheet size={24} color="#176B53" />
-                <div>
-                  <div style={{ fontWeight: 600 }}>CSV (Valores separados por comas)</div>
-                  <div style={{ fontSize: '11px', color: '#64748B' }}>
-                    Compatible con Excel, hojas de cálculo y procesamiento estadístico municipal.
-                  </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                border: '1px solid #176B53',
+                borderRadius: '8px',
+                backgroundColor: '#F0F7F4',
+                marginBottom: '16px',
+              }}
+            >
+              <FileSpreadsheet size={24} color="#176B53" />
+              <div>
+                <div style={{ fontWeight: 600 }}>CSV (Valores separados por comas)</div>
+                <div style={{ fontSize: '11px', color: '#64748B' }}>
+                  Incluye DNI, participante, categoría, participación, calificación, método QR/GPS,
+                  distancia en metros y fecha/hora.
                 </div>
-              </label>
-
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px',
-                  border: `1px solid ${exportFormat === 'pdf' ? '#176B53' : '#E2E8F0'}`,
-                  borderRadius: '8px',
-                  backgroundColor: exportFormat === 'pdf' ? '#F0F7F4' : '#FFFFFF',
-                  cursor: 'pointer',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="format"
-                  value="pdf"
-                  checked={exportFormat === 'pdf'}
-                  onChange={() => setExportFormat('pdf')}
-                />
-                <FileText size={24} color="#D97706" />
-                <div>
-                  <div style={{ fontWeight: 600 }}>PDF Oficial (Formato de Actas)</div>
-                  <div style={{ fontSize: '11px', color: '#64748B' }}>
-                    Descargará en formato CSV estructurado para auditoría.
-                  </div>
-                </div>
-              </label>
+              </div>
             </div>
 
-            <div style={{ fontSize: '12px', color: '#64748B', background: '#F8FAFC', padding: '10px', borderRadius: '6px' }}>
-              Se exportarán <strong>{filteredAttendances.length}</strong> registros correspondientes a los filtros actuales.
+            <div
+              style={{
+                fontSize: '12px',
+                color: '#64748B',
+                background: '#F8FAFC',
+                padding: '10px',
+                borderRadius: '6px',
+              }}
+            >
+              Se exportarán <strong>{filteredAttendances.length}</strong> registros
+              correspondientes a los filtros actuales.
             </div>
           </div>
         )}

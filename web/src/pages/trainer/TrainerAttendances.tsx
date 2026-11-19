@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   QrCode,
   Search,
@@ -13,12 +13,18 @@ import {
 } from 'lucide-react';
 import { attendanceService } from '../../services/attendanceService';
 import { workshopService } from '../../services/workshopService';
-import { AttendanceRecord, AttendanceStatus, SessionItem } from '../../models/types';
+import {
+  AttendanceRecord,
+  AttendanceStatus,
+  AttendanceParticipation,
+  SessionItem,
+} from '../../models/types';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Table } from '../../components/ui/Table';
 import { Card } from '../../components/ui/Card';
+import { Modal } from '../../components/ui/Modal';
 import styles from './TrainerAttendances.module.css';
 
 export const TrainerAttendances: React.FC = () => {
@@ -32,29 +38,48 @@ export const TrainerAttendances: React.FC = () => {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Manual attendance & grade modal
+  const [gradingRecord, setGradingRecord] = useState<AttendanceRecord | null>(null);
+  const [gradeParticipacion, setGradeParticipacion] =
+    useState<AttendanceParticipation>('ASISTENTE');
+  const [gradeValue, setGradeValue] = useState<string>('');
+
+  const [searchParams] = useSearchParams();
+  const urlSesionId = searchParams.get('sesionId');
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadSessions();
-  }, []);
-
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const list = await workshopService.getSessions();
       setSessions(list);
       if (list.length > 0) {
-        const initial = list.find(s => s.estado === 'EN_CURSO' || s.estado === 'EJECUTADA') || list[0];
-        setSelectedSessionId(initial.id);
+        const fromUrl = urlSesionId
+          ? list.find(
+              s =>
+                s.id === urlSesionId ||
+                s.id === urlSesionId.replace('ses-', '').replace('ws-', '')
+            )
+          : undefined;
+        const initial =
+          fromUrl ||
+          list.find(s => s.estado === 'EJECUTADA') ||
+          list.find(s => s.estado === 'PROGRAMADA') ||
+          list[0];
+        setSelectedSessionId(prev => prev || initial.id);
         setActiveSession(initial);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Error al cargar sesiones');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cargar sesiones');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [urlSesionId]);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
 
   const loadAttendances = useCallback(async (sesionId: string) => {
     if (!sesionId) return;
@@ -63,8 +88,8 @@ export const TrainerAttendances: React.FC = () => {
     try {
       const list = await attendanceService.getAttendancesBySession(sesionId);
       setAttendances(list);
-    } catch (err: any) {
-      setError(err?.message || 'Error al cargar asistencias');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cargar asistencias');
     } finally {
       setIsLoading(false);
     }
@@ -78,22 +103,44 @@ export const TrainerAttendances: React.FC = () => {
     }
   }, [selectedSessionId, sessions, loadAttendances]);
 
-  const handleUpdateStatus = async (record: AttendanceRecord, newStatus: AttendanceStatus) => {
+  const handleUpdateStatus = async (
+    record: AttendanceRecord,
+    newStatus: AttendanceStatus,
+    options?: { participacion?: AttendanceParticipation; calificacion?: number }
+  ) => {
     setIsActionLoading(true);
+    setError(null);
     try {
       await attendanceService.updateAttendanceStatus(
         record.id,
         newStatus,
         'Marcado manual asistido por capacitador',
         record.sesionId,
-        record.participanteId
+        record.participanteId,
+        options
       );
+      setGradingRecord(null);
       await loadAttendances(selectedSessionId);
-    } catch (err: any) {
-      alert(err?.message || 'Error al registrar asistencia manual');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al registrar asistencia manual');
+      setGradingRecord(null);
     } finally {
       setIsActionLoading(false);
     }
+  };
+
+  const handleSaveGradeModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gradingRecord) return;
+    const calNum = gradeValue.trim() !== '' ? parseFloat(gradeValue) : undefined;
+    if (calNum !== undefined && (isNaN(calNum) || calNum < 0 || calNum > 20)) {
+      setError('La calificación debe estar entre 0 y 20');
+      return;
+    }
+    await handleUpdateStatus(gradingRecord, 'PRESENTE', {
+      participacion: gradeParticipacion,
+      calificacion: calNum,
+    });
   };
 
   const filtered = attendances.filter(a => {
@@ -107,14 +154,23 @@ export const TrainerAttendances: React.FC = () => {
   const totalPresent = attendances.filter(a => a.estado === 'PRESENTE').length;
   const totalPending = attendances.filter(a => a.estado === 'PENDIENTE').length;
 
+  const isSessionClosed =
+    activeSession?.estado === 'VALIDADA' || activeSession?.estado === 'CANCELADA';
+
   const getStatusBadge = (estado: AttendanceStatus) => {
     switch (estado) {
       case 'PRESENTE':
-        return <Badge variant="success" withDot>Presente</Badge>;
+        return (
+          <Badge variant="success" withDot>
+            Presente
+          </Badge>
+        );
       case 'PENDIENTE':
-        return <Badge variant="warning" withDot>Pendiente</Badge>;
-      case 'JUSTIFICADO':
-        return <Badge variant="info" withDot>Justificado</Badge>;
+        return (
+          <Badge variant="warning" withDot>
+            Pendiente
+          </Badge>
+        );
       default:
         return <Badge variant="neutral">{estado}</Badge>;
     }
@@ -126,13 +182,20 @@ export const TrainerAttendances: React.FC = () => {
         <div>
           <h1 className={styles.title}>Lista de Asistencia — Sesión en Campo</h1>
           <p className={styles.subtitle}>
-            Verificación presencial de participantes inscritos y registro manual asistido
+            Verificación presencial de participantes inscritos, calificación y registro manual
+            asistido
           </p>
         </div>
         <Button
           variant="primary"
           icon={<QrCode size={16} />}
-          onClick={() => navigate('/trainer/qr')}
+          onClick={() =>
+            navigate(
+              `/trainer/qr${
+                selectedSessionId ? `?sesionId=${encodeURIComponent(selectedSessionId)}` : ''
+              }`
+            )
+          }
         >
           Ver Panel QR
         </Button>
@@ -158,9 +221,25 @@ export const TrainerAttendances: React.FC = () => {
 
       {/* Session selector */}
       {sessions.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#FFFFFF', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Sesión activa:</span>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            background: '#FFFFFF',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            border: '1px solid #E2E8F0',
+          }}
+        >
+          <label
+            htmlFor="trainer-att-session-select"
+            style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}
+          >
+            Sesión activa:
+          </label>
           <select
+            id="trainer-att-session-select"
             value={selectedSessionId}
             onChange={e => setSelectedSessionId(e.target.value)}
             style={{
@@ -174,7 +253,7 @@ export const TrainerAttendances: React.FC = () => {
           >
             {sessions.map(s => (
               <option key={s.id} value={s.id}>
-                {s.tallerNombre} — {s.sedeNombre}
+                {s.tallerNombre} — {s.sedeNombre} ({s.fecha})
               </option>
             ))}
           </select>
@@ -183,19 +262,60 @@ export const TrainerAttendances: React.FC = () => {
 
       {activeSession && (
         <Card padding="sm">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#1E293B' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '8px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 600,
+                  color: '#1E293B',
+                }}
+              >
                 <BookOpen size={16} color="#176B53" />
                 <span>{activeSession.tallerNombre}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748B', fontSize: '13px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: '#64748B',
+                  fontSize: '13px',
+                }}
+              >
                 <MapPin size={14} color="#0D9488" />
                 <span>{activeSession.sedeNombre}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748B', fontSize: '13px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: '#64748B',
+                  fontSize: '13px',
+                }}
+              >
                 <Clock size={14} />
-                <span>{activeSession.fecha} • {activeSession.hora}</span>
+                <span>
+                  {activeSession.fecha} • {activeSession.hora}
+                </span>
               </div>
             </div>
             <Badge variant="primary" withDot>
@@ -211,7 +331,7 @@ export const TrainerAttendances: React.FC = () => {
           <span className={styles.summaryNumber} style={{ color: '#176B53' }}>
             {attendances.length}
           </span>
-          <span className={styles.summaryLabel}>Total Inscritos</span>
+          <span className={styles.summaryLabel}>Total Padrón</span>
         </div>
         <div className={styles.summaryCard}>
           <span className={styles.summaryNumber} style={{ color: '#16A34A' }}>
@@ -257,29 +377,53 @@ export const TrainerAttendances: React.FC = () => {
         headers={[
           'DNI',
           'Participante',
-          'Categoría',
-          'Hora Marcado',
+          'Categoría / Rol',
+          'Hora / Nota',
           'Método',
           'Estado',
           'Acción Manual',
         ]}
+        isLoading={isLoading}
         isEmpty={!isLoading && filtered.length === 0}
       >
         {filtered.map(record => (
           <tr key={record.id}>
-            <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{record.participanteDni}</td>
-            <td>
-              <div style={{ fontWeight: 600, color: '#1E293B' }}>{record.participanteNombre}</div>
+            <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+              {record.participanteDni}
             </td>
             <td>
-              <Badge variant="primary">{record.participanteCategoria}</Badge>
+              <div style={{ fontWeight: 600, color: '#1E293B' }}>
+                {record.participanteNombre}
+              </div>
             </td>
-            <td style={{ color: '#475569', fontSize: '13px' }}>{record.horaMarcado}</td>
             <td>
-              <span style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Badge variant="primary">{record.participanteCategoria}</Badge>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>{record.participacion}</span>
+              </div>
+            </td>
+            <td style={{ color: '#475569', fontSize: '13px' }}>
+              <div>{record.horaMarcado}</div>
+              {record.calificacion !== undefined && (
+                <div style={{ fontSize: '11px', color: '#176B53', fontWeight: 600 }}>
+                  Nota: {record.calificacion}/20
+                </div>
+              )}
+            </td>
+            <td>
+              <span
+                style={{
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  color: '#475569',
+                }}
+              >
                 {record.metodo === 'QR_GPS' ? (
                   <>
-                    <QrCode size={13} color="#176B53" /> QR + GPS {record.distanciaMetros ? `(${record.distanciaMetros}m)` : ''}
+                    <QrCode size={13} color="#176B53" /> QR + GPS{' '}
+                    {record.distanciaMetros !== undefined ? `(${record.distanciaMetros}m)` : ''}
                   </>
                 ) : (
                   <>
@@ -290,31 +434,109 @@ export const TrainerAttendances: React.FC = () => {
             </td>
             <td>{getStatusBadge(record.estado)}</td>
             <td>
-              {record.estado === 'PENDIENTE' ? (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  icon={isActionLoading ? <Loader2 size={13} className="animate-spin" /> : <UserCheck size={13} />}
-                  onClick={() => handleUpdateStatus(record, 'PRESENTE')}
-                  disabled={isActionLoading}
-                >
-                  Marcar Presente
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleUpdateStatus(record, 'PENDIENTE')}
-                  disabled={isActionLoading}
-                  title="Revertir asistencia"
-                >
-                  Revertir
-                </Button>
+              {!isSessionClosed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {record.estado === 'PENDIENTE' ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon={
+                        isActionLoading ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <UserCheck size={13} />
+                        )
+                      }
+                      onClick={() => handleUpdateStatus(record, 'PRESENTE')}
+                      disabled={isActionLoading}
+                    >
+                      Marcar Presente
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setGradingRecord(record);
+                          setGradeParticipacion(record.participacion || 'ASISTENTE');
+                          setGradeValue(
+                            record.calificacion !== undefined
+                              ? record.calificacion.toString()
+                              : ''
+                          );
+                        }}
+                        disabled={isActionLoading}
+                      >
+                        Calificar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleUpdateStatus(record, 'PENDIENTE')}
+                        disabled={isActionLoading}
+                        title="Revertir asistencia"
+                      >
+                        Revertir
+                      </Button>
+                    </>
+                  )}
+                </div>
               )}
             </td>
           </tr>
         ))}
       </Table>
+
+      {/* Evaluation / Participation Modal */}
+      <Modal
+        isOpen={Boolean(gradingRecord)}
+        onClose={() => setGradingRecord(null)}
+        title="Registrar Participación y Calificación"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setGradingRecord(null)}
+              disabled={isActionLoading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" form="grade-form" disabled={isActionLoading}>
+              {isActionLoading ? 'Guardando...' : 'Guardar Calificación'}
+            </Button>
+          </>
+        }
+      >
+        <form id="grade-form" onSubmit={handleSaveGradeModal}>
+          <p style={{ fontSize: '13px', color: '#475569', marginBottom: '12px' }}>
+            Participante: <strong>{gradingRecord?.participanteNombre}</strong> (DNI:{' '}
+            {gradingRecord?.participanteDni})
+          </p>
+
+          <Select
+            label="Tipo de participación"
+            value={gradeParticipacion}
+            onChange={e => setGradeParticipacion(e.target.value as AttendanceParticipation)}
+          >
+            <option value="ASISTENTE">ASISTENTE</option>
+            <option value="VOLUNTARIO_REPLICA">VOLUNTARIO_REPLICA</option>
+            <option value="PONENTE">PONENTE</option>
+          </Select>
+
+          <Input
+            label="Calificación obtenida (0 a 20)"
+            type="number"
+            min="0"
+            max="20"
+            step="0.5"
+            value={gradeValue}
+            onChange={e => setGradeValue(e.target.value)}
+            placeholder="Ej. 18"
+          />
+        </form>
+      </Modal>
     </div>
   );
 };
