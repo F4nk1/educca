@@ -1,0 +1,7 @@
+bin/
+main
+backend
+.env
+*.out
+*.test
+coverage.*
