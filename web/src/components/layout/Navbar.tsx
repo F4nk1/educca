@@ -10,33 +10,24 @@ import {
   QrCode,
   LogOut,
   Leaf,
-  Server,
-  Database,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './Navbar.module.css';
 
 export const Navbar: React.FC = () => {
-  const { user, role, switchRole, logout, isDemoMode, toggleDemoMode } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  const handleRoleChange = (newRole: 'coordinador' | 'capacitador') => {
-    if (isDemoMode) {
-      switchRole(newRole);
-    }
-    if (newRole === 'coordinador') {
-      navigate('/coordinator');
-    } else {
-      navigate('/trainer/qr');
-    }
-  };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const isCoordinator = role === 'coordinador' || (user?.roles && (user.roles.includes('admin') || user.roles.includes('coordinador')));
+  const isCoordinator =
+    user &&
+    (user.rol === 'coordinador' ||
+      user.rol === 'admin' ||
+      (user.roles && (user.roles.includes('admin') || user.roles.includes('coordinador'))));
 
   return (
     <header className={styles.header}>
@@ -144,44 +135,6 @@ export const Navbar: React.FC = () => {
         </div>
 
         <div className={styles.actionsGroup}>
-          {/* Data Mode Indicator */}
-          <button
-            onClick={() => toggleDemoMode(!isDemoMode)}
-            title={isDemoMode ? 'Modo Demo (Click para cambiar a Backend API)' : 'Modo API Real (Click para cambiar a Demo)'}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '3px 8px',
-              fontSize: '11px',
-              fontWeight: 600,
-              borderRadius: '9999px',
-              backgroundColor: isDemoMode ? '#FEF3C7' : '#DCFCE7',
-              color: isDemoMode ? '#92400E' : '#166534',
-              border: `1px solid ${isDemoMode ? '#FDE68A' : '#BBF7D0'}`,
-              cursor: 'pointer',
-            }}
-          >
-            {isDemoMode ? <Database size={12} /> : <Server size={12} />}
-            <span>{isDemoMode ? 'Demo' : 'API Real'}</span>
-          </button>
-
-          {/* Quick role switcher for testing view transitions */}
-          <div className={styles.roleSelector} title="Cambiar rol activo para demostración">
-            <button
-              className={`${styles.roleButton} ${isCoordinator ? styles.roleButtonActive : ''}`}
-              onClick={() => handleRoleChange('coordinador')}
-            >
-              Coordinador
-            </button>
-            <button
-              className={`${styles.roleButton} ${!isCoordinator ? styles.roleButtonActive : ''}`}
-              onClick={() => handleRoleChange('capacitador')}
-            >
-              Capacitador
-            </button>
-          </div>
-
           {user && (
             <div className={styles.userProfile}>
               <div className={styles.avatar}>
