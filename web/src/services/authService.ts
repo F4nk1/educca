@@ -10,9 +10,9 @@ export class AuthService {
 
   constructor() {
     const savedMode = localStorage.getItem(DATA_MODE_KEY);
-    this.isDemoMode = savedMode === 'demo';
+    const defaultMode = import.meta.env.VITE_DEFAULT_DATA_MODE || 'api';
+    this.isDemoMode = savedMode ? savedMode === 'demo' : defaultMode === 'demo';
 
-    // Restore cached user from session if available
     const cachedUser = sessionStorage.getItem('educca_current_user');
     if (cachedUser) {
       try {
@@ -30,9 +30,15 @@ export class AuthService {
   setDemoMode(demo: boolean) {
     this.isDemoMode = demo;
     localStorage.setItem(DATA_MODE_KEY, demo ? 'demo' : 'api');
-    if (demo && !this.currentUser) {
+    if (demo) {
       this.currentUser = MOCK_USERS[0];
       sessionStorage.setItem('educca_current_user', JSON.stringify(this.currentUser));
+    } else {
+      // Returning to real API mode: only preserve user if a real JWT exists
+      if (!apiClient.getAccessToken()) {
+        this.currentUser = null;
+        sessionStorage.removeItem('educca_current_user');
+      }
     }
   }
 
@@ -42,8 +48,9 @@ export class AuthService {
 
   async initSession(): Promise<User | null> {
     if (this.isDemoMode) {
-      if (!this.currentUser) {
+      if (!this.currentUser || !this.currentUser.id.startsWith('usr-')) {
         this.currentUser = MOCK_USERS[0];
+        sessionStorage.setItem('educca_current_user', JSON.stringify(this.currentUser));
       }
       return this.currentUser;
     }
@@ -51,6 +58,7 @@ export class AuthService {
     const token = apiClient.getAccessToken();
     if (!token) {
       this.currentUser = null;
+      sessionStorage.removeItem('educca_current_user');
       return null;
     }
 
@@ -75,7 +83,6 @@ export class AuthService {
       return user;
     }
 
-    // Real Go REST API Authentication
     const tokens = await apiClient.post<GoToken>('/login', {
       identificador: identificador.trim(),
       password: password || '',
@@ -85,6 +92,17 @@ export class AuthService {
 
     const meResponse = await apiClient.get<GoMeResponse>('/me');
     const user = this.mapGoMeToUser(meResponse);
+
+    // Block citizen-only accounts ('capacitando') from administrative web portal
+    if (
+      user.rol === 'capacitando' ||
+      user.rol === 'promotor'
+    ) {
+      this.logout();
+      throw new Error(
+        'Su cuenta tiene perfil de Participante/Promotor. Por favor utilice la aplicación móvil EcoCapacita para inscribirse y registrar asistencia.'
+      );
+    }
 
     this.currentUser = user;
     sessionStorage.setItem('educca_current_user', JSON.stringify(user));
@@ -108,9 +126,10 @@ export class AuthService {
     const p = me.persona;
     const roles = me.roles || [];
 
-    // Map highest priority role for navigation
     let primaryRole: UserRole = 'capacitando';
-    if (roles.includes('admin') || roles.includes('coordinador')) {
+    if (roles.includes('admin')) {
+      primaryRole = 'admin';
+    } else if (roles.includes('coordinador')) {
       primaryRole = 'coordinador';
     } else if (roles.includes('capacitador')) {
       primaryRole = 'capacitador';
@@ -125,10 +144,12 @@ export class AuthService {
       dni: p.dni,
       nombres: p.nombres,
       apellidos: p.apellidos,
+      sexo: p.sexo === 'F' ? 'F' : 'M',
+      fechaNacimiento: p.fecha_nacimiento ? p.fecha_nacimiento.slice(0, 10) : undefined,
       email: p.email || '',
       telefono: p.telefono || '',
       rol: primaryRole,
-      roles: roles,
+      roles,
       permisos: me.permisos || [],
       categoria: p.categoria,
       activo: p.activo,

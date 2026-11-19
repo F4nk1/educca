@@ -3,6 +3,16 @@ import { apiClient } from './apiClient';
 import { authService } from './authService';
 import { MOCK_VENUES } from '../data/mock/venues';
 
+const VALID_VENUE_TYPES: VenueType[] = [
+  'MERCADO',
+  'CENTRO_ACOPIO',
+  'INSTITUCION_PUBLICA',
+  'ESPACIO_PUBLICO_EPEA',
+  'ORGANIZACION_SOCIAL',
+  'COLEGIO',
+  'EDUCACION_SUPERIOR',
+];
+
 class VenueService {
   private mockVenues: Venue[] = [...MOCK_VENUES];
 
@@ -12,7 +22,7 @@ class VenueService {
     }
 
     const orgs = await apiClient.get<GoOrganizacion[]>('/organizaciones');
-    return orgs.map(this.mapGoOrganizacionToVenue);
+    return orgs.map(org => this.mapGoOrganizacionToVenue(org));
   }
 
   async getVenueById(id: string): Promise<Venue | undefined> {
@@ -32,17 +42,16 @@ class VenueService {
     latitud: number;
     longitud: number;
     radioMetros: number;
-    estado?: string;
   }): Promise<Venue> {
     if (authService.isDemo()) {
       const newVenue: Venue = {
         id: `ven-${Date.now()}`,
-        nombre: venueData.nombre,
-        direccion: venueData.direccion,
+        nombre: venueData.nombre.trim(),
+        direccion: venueData.direccion.trim(),
         tipo: venueData.tipo,
         latitud: venueData.latitud,
         longitud: venueData.longitud,
-        radioMetros: venueData.radioMetros || 80,
+        radioMetros: venueData.radioMetros > 0 ? venueData.radioMetros : 80,
         estado: 'ACTIVO',
         talleresActivosCount: 0,
       };
@@ -51,24 +60,24 @@ class VenueService {
     }
 
     const payload = {
-      nombre: venueData.nombre,
+      nombre: venueData.nombre.trim(),
       tipo: venueData.tipo,
-      sector_ubicacion: venueData.direccion,
+      sector_ubicacion: venueData.direccion.trim(),
       latitud: venueData.latitud,
       longitud: venueData.longitud,
-      radio_metros: venueData.radioMetros || 80,
+      radio_metros: venueData.radioMetros > 0 ? venueData.radioMetros : 80,
     };
 
     const res = await apiClient.post<{ id: number }>('/organizaciones', payload);
     return {
       id: res.id.toString(),
       numericId: res.id,
-      nombre: venueData.nombre,
-      direccion: venueData.direccion,
+      nombre: payload.nombre,
+      direccion: payload.sector_ubicacion,
       tipo: venueData.tipo,
       latitud: venueData.latitud,
       longitud: venueData.longitud,
-      radioMetros: venueData.radioMetros || 80,
+      radioMetros: payload.radio_metros,
       estado: 'ACTIVO',
     };
   }
@@ -77,7 +86,7 @@ class VenueService {
     if (authService.isDemo()) {
       const index = this.mockVenues.findIndex(v => v.id === id);
       if (index === -1) return null;
-      this.mockVenues[index] = { ...this.mockVenues[index], ...updates };
+      this.mockUsersOrVenueUpdate(index, updates);
       return this.mockVenues[index];
     }
 
@@ -86,16 +95,20 @@ class VenueService {
 
     const payload = {
       id: existing.id,
-      nombre: updates.nombre ?? existing.nombre,
+      nombre: (updates.nombre ?? existing.nombre).trim(),
       tipo: updates.tipo ?? existing.tipo,
-      sector_ubicacion: updates.direccion ?? existing.sector_ubicacion,
+      sector_ubicacion: (updates.direccion ?? existing.sector_ubicacion).trim(),
       latitud: updates.latitud ?? existing.latitud,
       longitud: updates.longitud ?? existing.longitud,
-      radio_metros: updates.radioMetros ?? existing.radio_metros,
+      radio_metros: updates.radioMetros && updates.radioMetros > 0 ? updates.radioMetros : existing.radio_metros,
     };
 
     await apiClient.put(`/organizaciones/${numId}`, payload);
     return this.mapGoOrganizacionToVenue({ ...existing, ...payload });
+  }
+
+  private mockUsersOrVenueUpdate(index: number, updates: Partial<Venue>) {
+    this.mockVenues[index] = { ...this.mockVenues[index], ...updates };
   }
 
   async deleteVenue(id: string): Promise<boolean> {
@@ -109,25 +122,17 @@ class VenueService {
     return true;
   }
 
-  async toggleVenueStatus(id: string): Promise<Venue | null> {
-    if (authService.isDemo()) {
-      const venue = this.mockVenues.find(v => v.id === id);
-      if (!venue) return null;
-      venue.estado = venue.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
-      return venue;
-    }
-
-    // In Go backend organizations do not have a dedicated activo column, status is represented as active
-    return this.getVenueById(id).then(v => v || null);
-  }
-
   private mapGoOrganizacionToVenue(org: GoOrganizacion): Venue {
+    const normalizedTipo = VALID_VENUE_TYPES.includes(org.tipo as VenueType)
+      ? (org.tipo as VenueType)
+      : 'INSTITUCION_PUBLICA';
+
     return {
       id: org.id.toString(),
       numericId: org.id,
       nombre: org.nombre,
       direccion: org.sector_ubicacion,
-      tipo: org.tipo as VenueType,
+      tipo: normalizedTipo,
       latitud: org.latitud ?? -13.5186,
       longitud: org.longitud ?? -71.9839,
       radioMetros: org.radio_metros || 80,

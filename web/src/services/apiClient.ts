@@ -1,12 +1,13 @@
 import { GoToken } from '../models/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'https://educca.cocorium.online/api/v1';
 
 export class ApiError extends Error {
   status: number;
-  data: any;
+  data: unknown;
 
-  constructor(status: number, message: string, data?: any) {
+  constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -14,16 +15,20 @@ export class ApiError extends Error {
   }
 }
 
+interface RefreshSubscriber {
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}
+
 class ApiClient {
   private baseUrl: string = API_BASE_URL;
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private isRefreshing: boolean = false;
-  private refreshSubscribers: Array<(token: string) => void> = [];
+  private refreshSubscribers: RefreshSubscriber[] = [];
   private onUnauthorizedCallback?: () => void;
 
   constructor() {
-    // Restore tokens from sessionStorage if available
     this.accessToken = sessionStorage.getItem('educca_access_token');
     this.refreshToken = sessionStorage.getItem('educca_refresh_token');
   }
@@ -55,15 +60,22 @@ class ApiClient {
   }
 
   private onTokenRefreshed(token: string) {
-    this.refreshSubscribers.forEach(cb => cb(token));
+    const subscribers = [...this.refreshSubscribers];
     this.refreshSubscribers = [];
+    subscribers.forEach(sub => sub.resolve(token));
   }
 
-  private addRefreshSubscriber(cb: (token: string) => void) {
-    this.refreshSubscribers.push(cb);
+  private onTokenRefreshFailed(error: unknown) {
+    const subscribers = [...this.refreshSubscribers];
+    this.refreshSubscribers = [];
+    subscribers.forEach(sub => sub.reject(error));
   }
 
-  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private addRefreshSubscriber(sub: RefreshSubscriber) {
+    this.refreshSubscribers.push(sub);
+  }
+
+  async request<T>(endpoint: string, options: RequestInit = {}, isRetry: boolean = false): Promise<T> {
     const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -85,12 +97,19 @@ class ApiClient {
         ...options,
         headers,
       });
-    } catch (networkError: any) {
-      throw new ApiError(0, `Error de conexión con el servidor (${networkError?.message || 'Servidor no disponible'})`);
+    } catch (networkError: unknown) {
+      const msg = networkError instanceof Error ? networkError.message : 'Servidor no disponible';
+      throw new ApiError(0, `Error de conexión con el servidor (${msg})`);
     }
 
-    // Handle 401 Unauthorized for token refresh
-    if (response.status === 401 && this.refreshToken && !endpoint.includes('/login') && !endpoint.includes('/refresh')) {
+    // Handle 401 Unauthorized for token refresh (only once per request)
+    if (
+      response.status === 401 &&
+      !isRetry &&
+      this.refreshToken &&
+      !endpoint.includes('/login') &&
+      !endpoint.includes('/refresh')
+    ) {
       if (!this.isRefreshing) {
         this.isRefreshing = true;
         try {
@@ -98,45 +117,54 @@ class ApiClient {
           this.setTokens(newTokens.access_token, newTokens.refresh_token);
           this.isRefreshing = false;
           this.onTokenRefreshed(newTokens.access_token);
-          // Retry original request
-          headers['Authorization'] = `Bearer ${newTokens.access_token}`;
-          return this.request<T>(endpoint, { ...options, headers });
-        } catch (refreshErr) {
+          const retryHeaders = { ...headers, Authorization: `Bearer ${newTokens.access_token}` };
+          return this.request<T>(endpoint, { ...options, headers: retryHeaders }, true);
+        } catch {
           this.isRefreshing = false;
           this.clearTokens();
+          const expiredError = new ApiError(401, 'Sesión expirada. Por favor inicie sesión nuevamente.');
+          this.onTokenRefreshFailed(expiredError);
           if (this.onUnauthorizedCallback) {
             this.onUnauthorizedCallback();
           }
-          throw new ApiError(401, 'Sesión expirada. Por favor inicie sesión nuevamente.');
+          throw expiredError;
         }
       } else {
-        // Queue this request until refresh finishes
         return new Promise<T>((resolve, reject) => {
-          this.addRefreshSubscriber((newToken: string) => {
-            headers['Authorization'] = `Bearer ${newToken}`;
-            this.request<T>(endpoint, { ...options, headers })
-              .then(resolve)
-              .catch(reject);
+          this.addRefreshSubscriber({
+            resolve: (newToken: string) => {
+              const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
+              this.request<T>(endpoint, { ...options, headers: retryHeaders }, true)
+                .then(resolve)
+                .catch(reject);
+            },
+            reject,
           });
         });
       }
     }
 
-    // Process Response
+    // Process error response
     if (!response.ok) {
       let errorMessage = `Error HTTP ${response.status}: ${response.statusText}`;
-      let errorData: any = null;
+      let errorData: Record<string, unknown> | null = null;
       try {
         const text = await response.text();
         if (text) {
-          errorData = JSON.parse(text);
-          errorMessage = errorData.error || errorData.message || errorMessage;
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed === 'object') {
+            errorData = parsed as Record<string, unknown>;
+            const msg = errorData.error || errorData.message;
+            if (typeof msg === 'string' && msg.trim()) {
+              errorMessage = msg;
+            }
+          }
         }
       } catch {
         // Non-JSON error body
       }
 
-      if (response.status === 401 && this.onUnauthorizedCallback && !this.refreshToken) {
+      if (response.status === 401 && this.onUnauthorizedCallback && !endpoint.includes('/login')) {
         this.clearTokens();
         this.onUnauthorizedCallback();
       }
@@ -144,7 +172,6 @@ class ApiClient {
       throw new ApiError(response.status, errorMessage, errorData);
     }
 
-    // 204 No Content or empty body
     if (response.status === 204) {
       return {} as T;
     }
@@ -179,7 +206,7 @@ class ApiClient {
     return this.request<T>(endpoint, { method: 'GET', headers });
   }
 
-  post<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
+  post<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -187,7 +214,7 @@ class ApiClient {
     });
   }
 
-  put<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
+  put<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -195,7 +222,7 @@ class ApiClient {
     });
   }
 
-  patch<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
+  patch<T>(endpoint: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PATCH',
       body: body !== undefined ? JSON.stringify(body) : undefined,
