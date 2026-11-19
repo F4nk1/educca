@@ -12,12 +12,25 @@ import {
 } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { User, UserRole, PromoterCategory } from '../../models/types';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
 import styles from './UsersList.module.css';
+
+function isAtLeast18YearsOld(birthDateStr: string): boolean {
+  const birth = new Date(`${birthDateStr}T00:00:00`);
+  if (isNaN(birth.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 18 && birth.getFullYear() >= 1900;
+}
 
 export const UsersList: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -35,12 +48,16 @@ export const UsersList: React.FC = () => {
   const [formDni, setFormDni] = useState('');
   const [formNombres, setFormNombres] = useState('');
   const [formApellidos, setFormApellidos] = useState('');
+  const [formSexo, setFormSexo] = useState<'M' | 'F'>('M');
+  const [formFechaNacimiento, setFormFechaNacimiento] = useState('1995-01-01');
   const [formEmail, setFormEmail] = useState('');
   const [formTelefono, setFormTelefono] = useState('');
   const [formRol, setFormRol] = useState<UserRole>('capacitador');
   const [formCategoria, setFormCategoria] = useState<PromoterCategory>('PAC');
   const [formPassword, setFormPassword] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+
+  const { isReadOnly } = useAuth();
 
   useEffect(() => {
     loadUsers();
@@ -52,8 +69,8 @@ export const UsersList: React.FC = () => {
     try {
       const data = await userService.getUsers();
       setUsers(data);
-    } catch (err: any) {
-      setError(err?.message || 'Error al cargar usuarios desde el servidor');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cargar usuarios desde el servidor');
     } finally {
       setIsLoading(false);
     }
@@ -64,6 +81,8 @@ export const UsersList: React.FC = () => {
     setFormDni('');
     setFormNombres('');
     setFormApellidos('');
+    setFormSexo('M');
+    setFormFechaNacimiento('1995-01-01');
     setFormEmail('');
     setFormTelefono('');
     setFormRol('capacitador');
@@ -78,6 +97,8 @@ export const UsersList: React.FC = () => {
     setFormDni(user.dni);
     setFormNombres(user.nombres);
     setFormApellidos(user.apellidos);
+    setFormSexo(user.sexo || 'M');
+    setFormFechaNacimiento(user.fechaNacimiento || '1995-01-01');
     setFormEmail(user.email);
     setFormTelefono(user.telefono);
     setFormRol(user.rol);
@@ -89,8 +110,8 @@ export const UsersList: React.FC = () => {
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formDni.trim() || formDni.length !== 8) {
-      setFormError('El DNI debe contener exactamente 8 dígitos numéricos');
+    if (!formDni.trim() || formDni.trim().length < 8) {
+      setFormError('El documento de identidad (DNI) debe contener al menos 8 caracteres');
       return;
     }
     if (!formNombres.trim() || !formApellidos.trim()) {
@@ -101,73 +122,106 @@ export const UsersList: React.FC = () => {
       setFormError('El correo electrónico es obligatorio');
       return;
     }
+    if (!formFechaNacimiento || !isAtLeast18YearsOld(formFechaNacimiento)) {
+      setFormError(
+        'La fecha de nacimiento debe corresponder a una persona mayor de edad (>= 18 años) conforme a la LPDP'
+      );
+      return;
+    }
+    if (!editingUser && formPassword && formPassword.length < 8) {
+      setFormError('La contraseña inicial debe tener al menos 8 caracteres');
+      return;
+    }
+    if (editingUser && formPassword && formPassword.length > 0 && formPassword.length < 8) {
+      setFormError('Si desea actualizar la contraseña, debe tener al menos 8 caracteres');
+      return;
+    }
 
     setIsSubmitting(true);
     setFormError(null);
     try {
+      const isPromoter = formRol === 'promotor' || formRol === 'capacitando';
       if (editingUser) {
         await userService.updateUser(editingUser.id, {
-          dni: formDni,
-          nombres: formNombres,
-          apellidos: formApellidos,
-          email: formEmail,
-          telefono: formTelefono,
+          dni: formDni.trim(),
+          nombres: formNombres.trim(),
+          apellidos: formApellidos.trim(),
+          sexo: formSexo,
+          fechaNacimiento: formFechaNacimiento,
+          email: formEmail.trim(),
+          telefono: formTelefono.trim(),
           rol: formRol,
-          categoria: formRol === 'promotor' ? formCategoria : undefined,
+          categoria: isPromoter ? formCategoria : undefined,
+          password: formPassword.trim() || undefined,
         });
       } else {
         await userService.createUser({
-          dni: formDni,
-          nombres: formNombres,
-          apellidos: formApellidos,
-          email: formEmail,
-          telefono: formTelefono,
+          dni: formDni.trim(),
+          nombres: formNombres.trim(),
+          apellidos: formApellidos.trim(),
+          sexo: formSexo,
+          fechaNacimiento: formFechaNacimiento,
+          email: formEmail.trim(),
+          telefono: formTelefono.trim(),
           rol: formRol,
-          categoria: formRol === 'promotor' ? formCategoria : undefined,
-          password: formPassword || 'Educca2026*',
+          categoria: isPromoter ? formCategoria : undefined,
+          password: formPassword.trim() || 'Educca2026*',
         });
       }
 
       setIsModalOpen(false);
       await loadUsers();
-    } catch (err: any) {
-      setFormError(err?.message || 'Error al registrar el usuario en el backend');
+    } catch (err: unknown) {
+      setFormError(
+        err instanceof Error ? err.message : 'Error al registrar el usuario en el backend'
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleToggleStatus = async (id: string) => {
+    setError(null);
     try {
       await userService.toggleUserStatus(id);
       await loadUsers();
-    } catch (err: any) {
-      alert(err?.message || 'Error al cambiar estado del usuario');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cambiar estado del usuario');
     }
   };
 
   const filteredUsers = users.filter(u => {
     const matchesSearch =
-      u.dni.includes(searchTerm) ||
+      u.dni.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'ALL' || u.rol === roleFilter;
+
+    const matchesRole =
+      roleFilter === 'ALL' ||
+      u.rol === roleFilter ||
+      (roleFilter === 'coordinador' && (u.rol === 'admin' || u.roles?.includes('admin') || u.roles?.includes('coordinador'))) ||
+      (roleFilter === 'capacitador' && u.roles?.includes('capacitador')) ||
+      (roleFilter === 'promotor' && (u.rol === 'capacitando' || u.roles?.includes('capacitando')));
+
     return matchesSearch && matchesRole;
   });
 
-  const getRoleBadge = (rol: UserRole, categoria?: string) => {
-    switch (rol) {
-      case 'coordinador':
+  const getRoleBadge = (user: User) => {
+    switch (user.rol) {
       case 'admin':
-        return <Badge variant="primary">{rol.toUpperCase()}</Badge>;
+        return <Badge variant="primary">ADMIN</Badge>;
+      case 'coordinador':
+        return <Badge variant="primary">COORDINADOR</Badge>;
       case 'capacitador':
         return <Badge variant="info">Capacitador</Badge>;
+      case 'consulta':
+        return <Badge variant="neutral">Consulta</Badge>;
       case 'promotor':
       case 'capacitando':
-        return <Badge variant="warning">{categoria || 'Promotor'}</Badge>;
+        return <Badge variant="warning">{user.categoria || 'Promotor'}</Badge>;
       default:
-        return <Badge variant="neutral">{rol}</Badge>;
+        return <Badge variant="neutral">{user.rol}</Badge>;
     }
   };
 
@@ -177,16 +231,18 @@ export const UsersList: React.FC = () => {
         <div>
           <h1 className={styles.title}>Directorio de Usuarios</h1>
           <p className={styles.subtitle}>
-            Gestión de personas, coordinadores y promotores registrados en la base de datos
+            Gestión de personas, coordinadores, capacitadores y promotores registrados en PostgreSQL
           </p>
         </div>
-        <Button
-          variant="primary"
-          icon={<Plus size={16} />}
-          onClick={handleOpenCreateModal}
-        >
-          Nuevo Usuario
-        </Button>
+        {!isReadOnly && (
+          <Button
+            variant="primary"
+            icon={<Plus size={16} />}
+            onClick={handleOpenCreateModal}
+          >
+            Nuevo Usuario
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -231,7 +287,8 @@ export const UsersList: React.FC = () => {
             <option value="ALL">Todos los roles</option>
             <option value="coordinador">Coordinadores / Admin</option>
             <option value="capacitador">Capacitadores</option>
-            <option value="promotor">Promotores</option>
+            <option value="promotor">Promotores / Capacitandos</option>
+            <option value="consulta">Consulta</option>
           </Select>
         </div>
       </div>
@@ -244,8 +301,9 @@ export const UsersList: React.FC = () => {
           'Contacto',
           'Rol / Perfil',
           'Estado',
-          'Acciones',
+          ...(isReadOnly ? [] : ['Acciones']),
         ]}
+        isLoading={isLoading}
         isEmpty={!isLoading && filteredUsers.length === 0}
       >
         {filteredUsers.map(user => (
@@ -257,49 +315,72 @@ export const UsersList: React.FC = () => {
               <div style={{ fontWeight: 600, color: '#1E293B' }}>
                 {user.nombres} {user.apellidos}
               </div>
+              {user.fechaNacimiento && (
+                <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                  Sexo: {user.sexo || 'M'} • Nac: {user.fechaNacimiento}
+                </div>
+              )}
             </td>
             <td>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#475569' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '12px',
+                  color: '#475569',
+                }}
+              >
                 <Mail size={12} />
                 <span>{user.email || 'Sin correo'}</span>
               </div>
               {user.telefono && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94A3B8' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '11px',
+                    color: '#94A3B8',
+                  }}
+                >
                   <Phone size={11} />
                   <span>{user.telefono}</span>
                 </div>
               )}
             </td>
-            <td>{getRoleBadge(user.rol, user.categoria)}</td>
+            <td>{getRoleBadge(user)}</td>
             <td>
               <Badge variant={user.activo ? 'success' : 'neutral'} withDot>
                 {user.activo ? 'Activo' : 'Inactivo'}
               </Badge>
             </td>
-            <td>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleOpenEditModal(user)}
-                  title="Editar usuario"
-                >
-                  <Edit2 size={13} />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleToggleStatus(user.id)}
-                  title={user.activo ? 'Inactivar usuario' : 'Activar usuario'}
-                >
-                  {user.activo ? (
-                    <XCircle size={15} color="#DC2626" />
-                  ) : (
-                    <CheckCircle2 size={15} color="#16A34A" />
-                  )}
-                </Button>
-              </div>
-            </td>
+            {!isReadOnly && (
+              <td>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleOpenEditModal(user)}
+                    title="Editar usuario"
+                  >
+                    <Edit2 size={13} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleToggleStatus(user.id)}
+                    title={user.activo ? 'Inactivar usuario' : 'Activar usuario'}
+                  >
+                    {user.activo ? (
+                      <XCircle size={15} color="#DC2626" />
+                    ) : (
+                      <CheckCircle2 size={15} color="#16A34A" />
+                    )}
+                  </Button>
+                </div>
+              </td>
+            )}
           </tr>
         ))}
       </Table>
@@ -308,13 +389,18 @@ export const UsersList: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingUser ? 'Editar Persona' : 'Registrar Nueva Persona'}
+        title={editingUser ? 'Editar Persona y Perfil RBAC' : 'Registrar Nueva Persona'}
         footer={
           <>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleSaveUser} disabled={isSubmitting}>
+            <Button type="submit" form="user-form" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" /> Guardando...
@@ -328,7 +414,7 @@ export const UsersList: React.FC = () => {
           </>
         }
       >
-        <form onSubmit={handleSaveUser}>
+        <form id="user-form" onSubmit={handleSaveUser}>
           {formError && (
             <div
               style={{
@@ -346,10 +432,12 @@ export const UsersList: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
             <Input
-              label="DNI"
+              label="DNI / Documento"
               value={formDni}
-              onChange={e => setFormDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              placeholder="8 dígitos"
+              onChange={e =>
+                setFormDni(e.target.value.replace(/[^0-9A-Za-z-]/g, '').slice(0, 15))
+              }
+              placeholder="8 a 15 caracteres"
               required
             />
             <Input
@@ -370,6 +458,26 @@ export const UsersList: React.FC = () => {
           />
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Select
+              label="Sexo"
+              value={formSexo}
+              onChange={e => setFormSexo(e.target.value as 'M' | 'F')}
+              required
+            >
+              <option value="M">Masculino (M)</option>
+              <option value="F">Femenino (F)</option>
+            </Select>
+
+            <Input
+              label="Fecha de nacimiento (>= 18 años)"
+              type="date"
+              value={formFechaNacimiento}
+              onChange={e => setFormFechaNacimiento(e.target.value)}
+              required
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Input
               label="Correo electrónico"
               type="email"
@@ -386,31 +494,44 @@ export const UsersList: React.FC = () => {
             />
           </div>
 
-          {!editingUser && (
-            <Input
-              label="Contraseña inicial"
-              type="password"
-              value={formPassword}
-              onChange={e => setFormPassword(e.target.value)}
-              placeholder="Mínimo 8 caracteres"
-              helper="Por defecto: Educca2026*"
-            />
-          )}
+          <Input
+            label={editingUser ? 'Nueva contraseña (opcional)' : 'Contraseña inicial'}
+            type="password"
+            value={formPassword}
+            onChange={e => setFormPassword(e.target.value)}
+            placeholder={
+              editingUser ? 'Dejar en blanco para mantener actual' : 'Mínimo 8 caracteres'
+            }
+            helper={
+              editingUser
+                ? 'Mínimo 8 caracteres si desea restablecer la contraseña'
+                : 'Por defecto: Educca2026*'
+            }
+          />
 
-          <div style={{ display: 'grid', gridTemplateColumns: formRol === 'promotor' ? '1fr 1fr' : '1fr', gap: '12px' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                formRol === 'promotor' || formRol === 'capacitando' ? '1fr 1fr' : '1fr',
+              gap: '12px',
+            }}
+          >
             <Select
-              label="Perfil asignado"
+              label="Perfil / Rol RBAC asignado"
               value={formRol}
               onChange={e => setFormRol(e.target.value as UserRole)}
             >
               <option value="capacitador">Capacitador Ambiental</option>
-              <option value="coordinador">Coordinador</option>
-              <option value="promotor">Promotor / Participante</option>
+              <option value="coordinador">Coordinador Municipal</option>
+              <option value="promotor">Promotor / Capacitando</option>
+              <option value="consulta">Consulta (Solo lectura)</option>
+              <option value="admin">Administrador del Sistema</option>
             </Select>
 
-            {formRol === 'promotor' && (
+            {(formRol === 'promotor' || formRol === 'capacitando') && (
               <Select
-                label="Categoría promotor"
+                label="Categoría ciudadana"
                 value={formCategoria}
                 onChange={e => setFormCategoria(e.target.value as PromoterCategory)}
               >

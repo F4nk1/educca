@@ -1,0 +1,7 @@
+tunnel: a4898129-5106-4c24-99fa-da31df82c2f4
+credentials-file: /etc/cloudflared/a4898129-5106-4c24-99fa-da31df82c2f4.json
+
+ingress:
+  - hostname: educca.cocorium.online
+    service: http://127.0.0.1:8090
+  - service: http_status:404

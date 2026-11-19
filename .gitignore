@@ -18,6 +18,13 @@ backend/.env.*
 *.test
 coverage.*
 
+# Frontend Web artifacts
+node_modules/
+web/node_modules/
+dist/
+web/dist/
+.vite/
+
 # IDEs and OS files
 .vscode/
 .idea/
@@ -28,8 +35,3 @@ Thumbs.db
 
 /docs/
 /specs/
-
-# Node / Frontend
-node_modules/
-dist/
-.vite/

@@ -14,6 +14,7 @@ import { workshopService } from '../../services/workshopService';
 import { venueService } from '../../services/venueService';
 import { userService } from '../../services/userService';
 import { Workshop } from '../../models/types';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Table } from '../../components/ui/Table';
@@ -27,6 +28,7 @@ export const CoordinatorHome: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { isReadOnly } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,37 +42,51 @@ export const CoordinatorHome: React.FC = () => {
       const [loadedWorkshops, loadedVenues, loadedUsers] = await Promise.all([
         workshopService.getWorkshops(),
         venueService.getVenues(),
-        userService.getUsers(),
+        userService.getUsers().catch(() => []),
       ]);
 
       setWorkshops(loadedWorkshops);
       setVenuesCount(loadedVenues.length);
       setUsersCount(loadedUsers.length);
-    } catch (err: any) {
-      setError(err?.message || 'Error al conectar con los servicios del backend');
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Error al conectar con los servicios del backend';
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
   };
 
   const activeWorkshops = workshops.filter(
-    w => w.estado === 'EN_CURSO' || w.estado === 'PROGRAMADO' || w.estado === 'EJECUTADA'
+    w => w.estado === 'PROGRAMADA' || w.estado === 'EJECUTADA'
   );
 
   const getStatusBadge = (estado: string) => {
     switch (estado) {
-      case 'EN_CURSO':
       case 'EJECUTADA':
-        return <Badge variant="warning" withDot>En Curso / Ejecutada</Badge>;
-      case 'PROGRAMADO':
+        return (
+          <Badge variant="warning" withDot>
+            En Curso / Ejecutada
+          </Badge>
+        );
       case 'PROGRAMADA':
-        return <Badge variant="primary" withDot>Programado</Badge>;
-      case 'FINALIZADO':
+        return (
+          <Badge variant="primary" withDot>
+            Programada
+          </Badge>
+        );
       case 'VALIDADA':
-        return <Badge variant="success" withDot>Validado</Badge>;
-      case 'CANCELADO':
+        return (
+          <Badge variant="success" withDot>
+            Validada
+          </Badge>
+        );
       case 'CANCELADA':
-        return <Badge variant="danger" withDot>Cancelado</Badge>;
+        return (
+          <Badge variant="danger" withDot>
+            Cancelada
+          </Badge>
+        );
       default:
         return <Badge variant="neutral">{estado}</Badge>;
     }
@@ -94,13 +110,15 @@ export const CoordinatorHome: React.FC = () => {
           >
             Ver Sedes
           </Button>
-          <Button
-            variant="primary"
-            icon={<Plus size={16} />}
-            onClick={() => navigate('/coordinator/workshops/create')}
-          >
-            Programar Taller
-          </Button>
+          {!isReadOnly && (
+            <Button
+              variant="primary"
+              icon={<Plus size={16} />}
+              onClick={() => navigate('/coordinator/workshops/create')}
+            >
+              Programar Taller
+            </Button>
+          )}
         </div>
       </div>
 
@@ -129,7 +147,10 @@ export const CoordinatorHome: React.FC = () => {
       {/* Simple, compact operational summary cards */}
       <div className={styles.summaryGrid}>
         <div className={styles.metricCard}>
-          <div className={styles.metricIcon} style={{ backgroundColor: '#E4F1EB', color: '#176B53' }}>
+          <div
+            className={styles.metricIcon}
+            style={{ backgroundColor: '#E4F1EB', color: '#176B53' }}
+          >
             <BookOpen size={22} />
           </div>
           <div className={styles.metricInfo}>
@@ -141,7 +162,10 @@ export const CoordinatorHome: React.FC = () => {
         </div>
 
         <div className={styles.metricCard}>
-          <div className={styles.metricIcon} style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
+          <div
+            className={styles.metricIcon}
+            style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}
+          >
             <CalendarDays size={22} />
           </div>
           <div className={styles.metricInfo}>
@@ -153,7 +177,10 @@ export const CoordinatorHome: React.FC = () => {
         </div>
 
         <div className={styles.metricCard}>
-          <div className={styles.metricIcon} style={{ backgroundColor: '#E0F2FE', color: '#0284C7' }}>
+          <div
+            className={styles.metricIcon}
+            style={{ backgroundColor: '#E0F2FE', color: '#0284C7' }}
+          >
             <MapPin size={22} />
           </div>
           <div className={styles.metricInfo}>
@@ -165,7 +192,10 @@ export const CoordinatorHome: React.FC = () => {
         </div>
 
         <div className={styles.metricCard}>
-          <div className={styles.metricIcon} style={{ backgroundColor: '#F1F5F9', color: '#475569' }}>
+          <div
+            className={styles.metricIcon}
+            style={{ backgroundColor: '#F1F5F9', color: '#475569' }}
+          >
             <Users size={22} />
           </div>
           <div className={styles.metricInfo}>
@@ -197,7 +227,16 @@ export const CoordinatorHome: React.FC = () => {
         </div>
 
         <Table
-          headers={['Taller', 'Sede', 'Fecha y Hora', 'Capacitador', 'Cupos', 'Estado', 'Acción']}
+          headers={[
+            'Taller',
+            'Sede',
+            'Fecha y Hora',
+            'Capacitador',
+            'Cupos',
+            'Estado',
+            'Acción',
+          ]}
+          isLoading={isLoading}
           isEmpty={!isLoading && workshops.length === 0}
         >
           {workshops.slice(0, 5).map(w => (
@@ -222,7 +261,9 @@ export const CoordinatorHome: React.FC = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => navigate('/coordinator/sessions')}
+                  onClick={() =>
+                    navigate(`/coordinator/sessions?sesionId=${encodeURIComponent(w.id)}`)
+                  }
                 >
                   Ver Sesión
                 </Button>

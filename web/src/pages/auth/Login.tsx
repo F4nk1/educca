@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, LogIn, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle, ShieldAlert, Database, Server } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -9,18 +9,16 @@ import paisajeSvg from '../../assets/paisaje_andino.svg';
 import styles from './Login.module.css';
 
 export const Login: React.FC = () => {
-  const { login } = useAuth();
+  const { login, isDemoMode, toggleDemoMode } = useAuth();
   const navigate = useNavigate();
 
-  const [identificador, setIdentificador] = useState('admin@educca.gob.pe');
-  const [password, setPassword] = useState('password123');
+  const [identificador, setIdentificador] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Forgot password modal
+  // Institutional password reset instructions modal
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotSubmitted, setForgotSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,27 +36,23 @@ export const Login: React.FC = () => {
     setIsSubmitting(true);
     try {
       const loggedUser = await login(identificador.trim(), password);
-      const isCoordinator =
-        loggedUser.rol === 'coordinador' ||
+      const isCoord =
         loggedUser.rol === 'admin' ||
-        (loggedUser.roles && (loggedUser.roles.includes('admin') || loggedUser.roles.includes('coordinador')));
+        loggedUser.rol === 'coordinador' ||
+        loggedUser.rol === 'consulta' ||
+        loggedUser.roles?.includes('admin') ||
+        loggedUser.roles?.includes('coordinador') ||
+        loggedUser.roles?.includes('consulta');
 
-      if (isCoordinator) {
-        navigate('/coordinator');
-      } else {
-        navigate('/trainer/qr');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Error al iniciar sesión. Verifique sus credenciales.');
+      navigate(isCoord ? '/coordinator' : '/trainer/qr', { replace: true });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Error al iniciar sesión. Verifique sus credenciales.';
+      setError(msg);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleForgotSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (forgotEmail) {
-      setForgotSubmitted(true);
     }
   };
 
@@ -109,15 +103,24 @@ export const Login: React.FC = () => {
               />
             </div>
 
-            <div className={styles.formActionsRow}>
+            <div className={styles.formActionsRow} style={{ justifyContent: 'space-between' }}>
+              {import.meta.env.DEV && (
+                <button
+                  type="button"
+                  className={styles.forgotLink}
+                  onClick={() => {
+                    setIdentificador('admin@educca.gob.pe');
+                    setPassword('password123');
+                  }}
+                >
+                  Autocompletar semilla (Dev)
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.forgotLink}
-                onClick={() => {
-                  setForgotModalOpen(true);
-                  setForgotSubmitted(false);
-                  setForgotEmail(identificador.includes('@') ? identificador : '');
-                }}
+                onClick={() => setForgotModalOpen(true)}
+                style={{ marginLeft: 'auto' }}
               >
                 ¿Olvidaste tu contraseña?
               </button>
@@ -133,11 +136,48 @@ export const Login: React.FC = () => {
             >
               {isSubmitting ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
+
+            {import.meta.env.DEV && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingTop: '8px',
+                  fontSize: '12px',
+                  color: '#64748B',
+                }}
+              >
+                <span>Modo de desarrollo:</span>
+                <button
+                  type="button"
+                  onClick={() => toggleDemoMode(!isDemoMode)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    borderRadius: '9999px',
+                    backgroundColor: isDemoMode ? '#FEF3C7' : '#DCFCE7',
+                    color: isDemoMode ? '#92400E' : '#166534',
+                    border: `1px solid ${isDemoMode ? '#FDE68A' : '#BBF7D0'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isDemoMode ? <Database size={12} /> : <Server size={12} />}
+                  <span>{isDemoMode ? 'Modo Demo (Local)' : 'API Real (Go + PostgreSQL)'}</span>
+                </button>
+              </div>
+            )}
           </form>
 
           <footer className={styles.formFooter}>
             <p>Programa Municipal de Educación, Cultura y Ciudadanía Ambiental</p>
-            <p className={styles.copyright}>© Municipalidad Provincial del Cusco — Gerencia de Medio Ambiente</p>
+            <p className={styles.copyright}>
+              © Municipalidad Provincial del Cusco — Gerencia de Medio Ambiente
+            </p>
           </footer>
         </div>
       </div>
@@ -155,7 +195,8 @@ export const Login: React.FC = () => {
           <div className={styles.illustrationTag}>SISTEMA DE GESTIÓN AMBIENTAL</div>
           <h2 className={styles.illustrationTitle}>EDUCCA Cusco</h2>
           <p className={styles.illustrationText}>
-            Fortaleciendo la cultura ambiental y el desarrollo sostenible en la Ciudad Imperial del Cusco a través de capacitaciones y participación ciudadana.
+            Fortaleciendo la cultura ambiental y el desarrollo sostenible en la Ciudad Imperial del
+            Cusco a través de capacitaciones y participación ciudadana.
           </p>
           <div className={styles.illustrationFooterBadge}>
             Gestión Operativa • Sedes • Talleres • Asistencias
@@ -163,48 +204,44 @@ export const Login: React.FC = () => {
         </div>
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* Institutional Password Reset Instructions Modal */}
       <Modal
         isOpen={forgotModalOpen}
         onClose={() => setForgotModalOpen(false)}
-        title="Recuperar Contraseña"
-        footer={
-          forgotSubmitted ? (
-            <Button onClick={() => setForgotModalOpen(false)}>Entendido</Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={() => setForgotModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleForgotSubmit}>Enviar Enlace</Button>
-            </>
-          )
-        }
+        title="Restablecimiento de Contraseña Institucional"
+        footer={<Button onClick={() => setForgotModalOpen(false)}>Entendido</Button>}
       >
-        {forgotSubmitted ? (
-          <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <CheckCircle2 size={48} color="#16A34A" style={{ margin: '0 auto 12px' }} />
-            <h4 style={{ marginBottom: '8px', fontSize: '16px', fontWeight: 600 }}>Solicitud Registrada</h4>
-            <p style={{ color: '#64748B', fontSize: '13px' }}>
-              Se ha enviado un enlace de restablecimiento al correo institucional{' '}
-              <strong>{forgotEmail}</strong>.
-            </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '12px',
+              backgroundColor: '#F0F7F4',
+              border: '1px solid #C3DFD3',
+              borderRadius: '8px',
+              color: '#153B2F',
+              fontSize: '13px',
+            }}
+          >
+            <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <strong>Política de Seguridad Municipal (LPDP)</strong>
+              <p style={{ marginTop: '4px', color: '#334155' }}>
+                Por razones de seguridad y control de acceso basado en roles (RBAC), el cambio o
+                restablecimiento de credenciales de Coordinadores y Capacitadores es realizado por
+                un <strong>Administrador del Sistema EDUCCA</strong> desde el módulo de{' '}
+                <em>Directorio de Usuarios</em>.
+              </p>
+            </div>
           </div>
-        ) : (
-          <form onSubmit={handleForgotSubmit}>
-            <p style={{ color: '#64748B', fontSize: '13px', marginBottom: '16px' }}>
-              Ingrese su correo electrónico registrado para recibir las instrucciones de restablecimiento de contraseña.
-            </p>
-            <Input
-              label="Correo institucional"
-              type="email"
-              value={forgotEmail}
-              onChange={e => setForgotEmail(e.target.value)}
-              placeholder="usuario@educca.gob.pe"
-              required
-            />
-          </form>
-        )}
+          <p style={{ color: '#64748B', fontSize: '12px' }}>
+            Comuníquese con la Gerencia de Medio Ambiente de la Municipalidad Provincial del Cusco
+            indicando su número de DNI o correo institucional para la asignación de una nueva
+            contraseña temporal.
+          </p>
+        </div>
       </Modal>
     </div>
   );

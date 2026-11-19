@@ -11,6 +11,12 @@ export interface GoToken {
   token_type: string;
 }
 
+export interface GoRol {
+  id: number;
+  nombre: string;
+  descripcion: string;
+}
+
 export interface GoPersona {
   id: number;
   dni: string;
@@ -115,6 +121,8 @@ export interface User {
   dni: string;
   nombres: string;
   apellidos: string;
+  sexo?: 'M' | 'F';
+  fechaNacimiento?: string;
   email: string;
   telefono: string;
   rol: UserRole;
@@ -125,7 +133,15 @@ export interface User {
   fechaCreacion?: string;
 }
 
-export type VenueType = 'MERCADO' | 'CENTRO_ACOPIO' | 'INSTITUCION' | 'ESPACIO_PUBLICO' | 'COLEGIO' | 'EDUCACION_SUPERIOR' | 'ORGANIZACION_SOCIAL' | 'ESPACIO_PUBLICO_EPEA' | 'INSTITUCION_PUBLICA';
+export type VenueType =
+  | 'MERCADO'
+  | 'CENTRO_ACOPIO'
+  | 'INSTITUCION_PUBLICA'
+  | 'ESPACIO_PUBLICO_EPEA'
+  | 'ORGANIZACION_SOCIAL'
+  | 'COLEGIO'
+  | 'EDUCACION_SUPERIOR';
+
 export type VenueStatus = 'ACTIVO' | 'INACTIVO';
 
 export interface Venue {
@@ -141,7 +157,9 @@ export interface Venue {
   talleresActivosCount?: number;
 }
 
-export type WorkshopStatus = 'PROGRAMADO' | 'EN_CURSO' | 'FINALIZADO' | 'CANCELADO' | 'EJECUTADA' | 'VALIDADA';
+export type SessionStatus = 'PROGRAMADA' | 'EJECUTADA' | 'VALIDADA' | 'CANCELADA';
+export type WorkshopStatus = SessionStatus;
+export type SessionModalidad = 'PRESENCIAL' | 'VIRTUAL';
 
 export interface Workshop {
   id: string;
@@ -152,6 +170,8 @@ export interface Workshop {
   fecha: string;
   horaInicio: string;
   horaFin: string;
+  duracionMinutos?: number;
+  modalidad: SessionModalidad;
   capacitadorId: string;
   capacitadorNombre: string;
   cuposTotales: number;
@@ -159,21 +179,23 @@ export interface Workshop {
   inscritos: number;
   estado: WorkshopStatus;
   ejeTematico: string;
+  ejeTematicoCodigo: string;
   descripcion: string;
   metaAnualId?: number;
 }
-
-export type SessionStatus = 'PROGRAMADA' | 'EN_CURSO' | 'FINALIZADA' | 'CANCELADA' | 'EJECUTADA' | 'VALIDADA';
 
 export interface SessionItem {
   id: string;
   numericId?: number;
   tallerId: string;
   tallerNombre: string;
+  sedeId?: string;
   sedeNombre: string;
   fecha: string;
   hora: string;
+  modalidad: SessionModalidad;
   estado: SessionStatus;
+  capacitadorId?: string;
   capacitadorNombre: string;
   qrActivo: boolean;
   qrToken?: string;
@@ -182,8 +204,9 @@ export interface SessionItem {
   totalAsistencias: number;
 }
 
-export type AttendanceStatus = 'PRESENTE' | 'PENDIENTE' | 'JUSTIFICADO';
+export type AttendanceStatus = 'PRESENTE' | 'PENDIENTE';
 export type AttendanceMethod = 'QR_GPS' | 'MANUAL';
+export type AttendanceParticipation = 'ASISTENTE' | 'VOLUNTARIO_REPLICA' | 'PONENTE';
 
 export interface AttendanceRecord {
   id: string;
@@ -194,6 +217,8 @@ export interface AttendanceRecord {
   participanteDni: string;
   participanteNombre: string;
   participanteCategoria: PromoterCategory | string;
+  participacion: AttendanceParticipation;
+  calificacion?: number;
   horaMarcado: string;
   fecha: string;
   estado: AttendanceStatus;

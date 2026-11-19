@@ -3,12 +3,14 @@
  * Handles conversions between local form inputs and backend RFC 3339 timestamps.
  */
 
-/**
- * Converts a local date ("YYYY-MM-DD") and local time ("HH:mm") into an RFC 3339 ISO string.
- * Example: ("2026-11-28", "09:00") -> "2026-11-28T14:00:00.000Z" (when in America/Lima UTC-5)
- *
- * Preserves the exact user-selected moment and formats it for Go's time.Time parser.
- */
+export function getTodayLocalISO(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function formatToRFC3339(fechaProgramada: string, horaInicio: string): string {
   const cleanHora = (horaInicio || '09:00').slice(0, 5);
   const localIso = `${fechaProgramada}T${cleanHora}:00`;
@@ -19,30 +21,43 @@ export function formatToRFC3339(fechaProgramada: string, horaInicio: string): st
   return `${localIso}Z`;
 }
 
-/**
- * Calculates duration in minutes between two time strings ("HH:mm").
- * Ensures the duration is positive and within valid signed 16-bit integer bounds (15 to 720 minutes).
- */
+export function validateTimeRange(
+  horaInicio: string,
+  horaFin: string
+): { valid: boolean; diffMinutes: number; error?: string } {
+  const [h1, m1] = (horaInicio || '').slice(0, 5).split(':').map(Number);
+  const [h2, m2] = (horaFin || '').slice(0, 5).split(':').map(Number);
+  if (isNaN(h1) || isNaN(m1) || isNaN(h2) || isNaN(m2)) {
+    return { valid: false, diffMinutes: 0, error: 'Formato de hora inválido (use HH:mm)' };
+  }
+  const diff = h2 * 60 + m2 - (h1 * 60 + m1);
+  if (diff <= 0) {
+    return {
+      valid: false,
+      diffMinutes: 0,
+      error: 'La hora de fin debe ser posterior a la hora de inicio',
+    };
+  }
+  if (diff < 15 || diff > 720) {
+    return {
+      valid: false,
+      diffMinutes: diff,
+      error: 'La duración de la sesión debe estar entre 15 minutos y 12 horas',
+    };
+  }
+  return { valid: true, diffMinutes: diff };
+}
+
 export function calculateDurationMinutes(horaInicio: string, horaFin: string): number {
-  try {
-    const [h1, m1] = (horaInicio || '09:00').slice(0, 5).split(':').map(Number);
-    const [h2, m2] = (horaFin || '11:00').slice(0, 5).split(':').map(Number);
-    const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-    if (diff > 0) {
-      return Math.min(Math.max(diff, 15), 720);
-    }
-  } catch {
-    // ignore parsing errors
+  const check = validateTimeRange(horaInicio, horaFin);
+  if (check.valid) {
+    return check.diffMinutes;
   }
   return 120;
 }
 
-/**
- * Extracts the local date ("YYYY-MM-DD") from an ISO / RFC 3339 timestamp,
- * avoiding accidental date displacement caused by UTC day boundaries.
- */
 export function extractLocalDate(isoString: string): string {
-  if (!isoString) return '';
+  if (!isoString) return getTodayLocalISO();
   const date = new Date(isoString);
   if (isNaN(date.getTime())) {
     return isoString.slice(0, 10);
@@ -53,9 +68,6 @@ export function extractLocalDate(isoString: string): string {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * Extracts the local time ("HH:mm") from an ISO / RFC 3339 timestamp.
- */
 export function extractLocalTime(isoString: string): string {
   if (!isoString) return '09:00';
   const date = new Date(isoString);
@@ -64,5 +76,20 @@ export function extractLocalTime(isoString: string): string {
   }
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+export function extractEndTime(isoString: string, duracionMinutos: number = 120): string {
+  if (!isoString) return '11:00';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) {
+    return '11:00';
+  }
+  const endDate = new Date(date.getTime() + (duracionMinutos || 120) * 60000);
+  if (isNaN(endDate.getTime())) {
+    return '11:00';
+  }
+  const hours = String(endDate.getHours()).padStart(2, '0');
+  const minutes = String(endDate.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   MapPin,
@@ -10,30 +10,33 @@ import {
   QrCode,
   LogOut,
   Leaf,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './Navbar.module.css';
 
 export const Navbar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, isCoordinator, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isTrainerViewActive = location.pathname.startsWith('/trainer');
+  const showCoordinatorMenu = isCoordinator && !isTrainerViewActive;
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const isCoordinator =
-    user &&
-    (user.rol === 'coordinador' ||
-      user.rol === 'admin' ||
-      (user.roles && (user.roles.includes('admin') || user.roles.includes('coordinador'))));
-
   return (
     <header className={styles.header}>
       <div className={styles.topBar}>
         <div className={styles.brandGroup}>
-          <NavLink to={isCoordinator ? '/coordinator' : '/trainer/qr'} className={styles.brand}>
+          <NavLink
+            to={isCoordinator ? '/coordinator' : '/trainer/qr'}
+            className={styles.brand}
+            title="Ir al inicio de EDUCCA Cusco"
+          >
             <div className={styles.logoIcon}>
               <Leaf size={18} />
             </div>
@@ -44,12 +47,14 @@ export const Navbar: React.FC = () => {
           </NavLink>
 
           {/* Horizontal Top Navigation */}
-          <nav className={styles.navLinks}>
-            {isCoordinator ? (
+          <nav className={styles.navLinks} aria-label="Navegación principal">
+            {showCoordinatorMenu ? (
               <>
                 <NavLink
                   to="/coordinator"
                   end
+                  title="Panel de Inicio"
+                  aria-label="Panel de Inicio"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -60,6 +65,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/venues"
+                  title="Sedes Georreferenciadas"
+                  aria-label="Sedes Georreferenciadas"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -70,6 +77,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/workshops"
+                  title="Catálogo de Talleres"
+                  aria-label="Catálogo de Talleres"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -80,6 +89,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/sessions"
+                  title="Sesiones Operativas"
+                  aria-label="Sesiones Operativas"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -90,6 +101,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/attendances"
+                  title="Consulta Global de Asistencias"
+                  aria-label="Consulta Global de Asistencias"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -100,6 +113,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/coordinator/users"
+                  title="Directorio de Usuarios"
+                  aria-label="Directorio de Usuarios"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -110,8 +125,22 @@ export const Navbar: React.FC = () => {
               </>
             ) : (
               <>
+                {isCoordinator && (
+                  <NavLink
+                    to="/coordinator/sessions"
+                    title="Volver al Panel de Coordinación"
+                    aria-label="Volver al Panel de Coordinación"
+                    className={styles.navLink}
+                  >
+                    <ArrowLeft size={16} />
+                    <span>Gestión</span>
+                  </NavLink>
+                )}
+
                 <NavLink
                   to="/trainer/qr"
+                  title="Panel de Código QR"
+                  aria-label="Panel de Código QR"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -122,6 +151,8 @@ export const Navbar: React.FC = () => {
 
                 <NavLink
                   to="/trainer/attendances"
+                  title="Lista de Asistencias de Sesión"
+                  aria-label="Lista de Asistencias de Sesión"
                   className={({ isActive }) =>
                     `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`
                   }
@@ -150,9 +181,11 @@ export const Navbar: React.FC = () => {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={handleLogout}
                 className={styles.navLink}
                 title="Cerrar sesión"
+                aria-label="Cerrar sesión"
                 style={{ padding: '6px', marginLeft: '4px' }}
               >
                 <LogOut size={16} />

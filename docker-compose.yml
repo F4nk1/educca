@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: educca_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-educca}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      TZ: America/Lima
+    volumes:
+      - educca_pgdata:/var/lib/postgresql
+      - ./database/AmbiData.sql:/docker-entrypoint-initdb.d/01_AmbiData.sql:ro
+    ports:
+      - "${PG_HOST_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-educca}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      network: host
+    container_name: educca_backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SERVER_PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-educca}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_SSLMODE: disable
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://educca.cocorium.online,http://educca.cocorium.online,http://localhost:8090,http://localhost:5173,http://localhost:8080}
+      ACCESS_SECRET: ${ACCESS_SECRET:-super_secret_jwt_access_key_educca_2026}
+      REFRESH_SECRET: ${REFRESH_SECRET:-super_secret_jwt_refresh_key_educca_2026}
+      QR_SECRET: ${QR_SECRET:-super_secret_qr_hmac_key_educca_2026}
+      QR_TTL_SECONDS: ${QR_TTL_SECONDS:-300}
+      PRIVACY_POLICY_VERSION: ${PRIVACY_POLICY_VERSION:-v1.0-2026}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      network: host
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://educca.cocorium.online/api/v1}
+        VITE_DEFAULT_DATA_MODE: ${VITE_DEFAULT_DATA_MODE:-api}
+    container_name: educca_web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8090}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.0
+    container_name: educca_cloudflared
+    restart: unless-stopped
+    network_mode: host
+    user: "1000:1000"
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./deploy/cloudflared/educca.yml:/etc/cloudflared/config.yml:ro
+      - ${HOME}/.cloudflared/a4898129-5106-4c24-99fa-da31df82c2f4.json:/etc/cloudflared/a4898129-5106-4c24-99fa-da31df82c2f4.json:ro
+    depends_on:
+      - web
+
+volumes:
+  educca_pgdata:

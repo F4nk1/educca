@@ -6,8 +6,8 @@ class AppConfig extends ChangeNotifier {
   static const String _baseUrlKey = 'app_backend_base_url';
   static const String _demoModeKey = 'app_demo_mode_active';
   
-  /// Valor por defecto para emulador Android conectando al backend Go en host.
-  static const String defaultBaseUrl = 'http://10.0.2.2:8080/api/v1';
+  /// Valor por defecto apuntando al subdominio de pruebas (o 10.0.2.2:8080 en emulador local).
+  static const String defaultBaseUrl = 'https://educca.cocorium.online/api/v1';
 
   String _baseUrl = defaultBaseUrl;
   bool _isDemoMode = false;

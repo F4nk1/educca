@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   QrCode,
@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   RotateCw,
   AlertCircle,
+  CheckCircle2,
   Loader2,
 } from 'lucide-react';
 import { workshopService } from '../../services/workshopService';
@@ -19,6 +20,7 @@ import { SessionItem, GoQRResponse, GoSesionMonitoreo } from '../../models/types
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
+import { Modal } from '../../components/ui/Modal';
 import styles from './TrainerQRPanel.module.css';
 
 export const TrainerQRPanel: React.FC = () => {
@@ -31,31 +33,43 @@ export const TrainerQRPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isActionLoading, setIsActionLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFinishModalOpen, setIsFinishModalOpen] = useState<boolean>(false);
 
+  const [searchParams] = useSearchParams();
+  const urlSesionId = searchParams.get('sesionId');
   const navigate = useNavigate();
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load available sessions for trainer
-  useEffect(() => {
-    loadSessions();
-  }, []);
-
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const list = await workshopService.getSessions();
       setSessions(list);
       if (list.length > 0) {
-        const initial = list.find(s => s.estado === 'EN_CURSO' || s.estado === 'EJECUTADA') || list[0];
-        setSelectedSessionId(initial.id);
+        const fromUrl = urlSesionId
+          ? list.find(
+              s =>
+                s.id === urlSesionId ||
+                s.id === urlSesionId.replace('ses-', '').replace('ws-', '')
+            )
+          : undefined;
+        const initial =
+          fromUrl ||
+          list.find(s => s.estado === 'EJECUTADA') ||
+          list.find(s => s.estado === 'PROGRAMADA') ||
+          list[0];
+        setSelectedSessionId(prev => prev || initial.id);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Error al cargar las sesiones');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cargar las sesiones');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [urlSesionId]);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
 
   const syncQRAndMonitoreo = useCallback(async (sessionId: string) => {
     if (!sessionId) return;
@@ -79,45 +93,40 @@ export const TrainerQRPanel: React.FC = () => {
     }
   }, []);
 
-  // Sync session details when selected session changes
   useEffect(() => {
     if (!selectedSessionId) return;
     const session = sessions.find(s => s.id === selectedSessionId) || null;
     setActiveSession(session);
     syncQRAndMonitoreo(selectedSessionId);
 
-    // Periodic monitoring poll every 10 seconds
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       syncQRAndMonitoreo(selectedSessionId);
     }, 10000);
 
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [selectedSessionId, sessions, syncQRAndMonitoreo]);
 
-  // Local seconds countdown synced to server expiration
+  // Countdown interval created once per active QR token cycle
+  const hasActiveCountdown = Boolean(qrData && secondsRemaining > 0);
+
   useEffect(() => {
-    if (secondsRemaining <= 0) {
-      if (timerRef.current) clearInterval(timerRef.current);
+    if (!hasActiveCountdown || !selectedSessionId) {
       return;
     }
 
-    timerRef.current = setInterval(() => {
+    const timer = window.setInterval(() => {
       setSecondsRemaining(prev => {
         if (prev <= 1) {
-          // Re-sync with server when countdown reaches 0
-          if (selectedSessionId) syncQRAndMonitoreo(selectedSessionId);
+          syncQRAndMonitoreo(selectedSessionId);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [secondsRemaining, selectedSessionId, syncQRAndMonitoreo]);
+    return () => window.clearInterval(timer);
+  }, [hasActiveCountdown, selectedSessionId, syncQRAndMonitoreo]);
 
-  // Handle generating/activating real QR token on server
   const handleGenerateQR = async () => {
     if (!selectedSessionId) return;
     setIsActionLoading(true);
@@ -126,15 +135,17 @@ export const TrainerQRPanel: React.FC = () => {
       const res = await workshopService.generateQR(selectedSessionId, 300);
       setQrData(res);
       setSecondsRemaining(res.segundos_restantes);
-      await syncQRAndMonitoreo(selectedSessionId);
-    } catch (err: any) {
-      setError(err?.message || 'Error al emitir código QR en el servidor Go');
+      const mon = await workshopService.getMonitoreo(selectedSessionId).catch(() => null);
+      if (mon) setMonitoreo(mon);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Error al emitir código QR en el servidor Go'
+      );
     } finally {
       setIsActionLoading(false);
     }
   };
 
-  // Handle revoking QR on server
   const handleRevokeQR = async () => {
     if (!selectedSessionId) return;
     setIsActionLoading(true);
@@ -144,23 +155,33 @@ export const TrainerQRPanel: React.FC = () => {
       setQrData(null);
       setSecondsRemaining(0);
       await syncQRAndMonitoreo(selectedSessionId);
-    } catch (err: any) {
-      setError(err?.message || 'Error al revocar el código QR');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al revocar el código QR');
     } finally {
       setIsActionLoading(false);
     }
   };
 
-  const handleFinishSession = async () => {
-    if (!selectedSessionId) return;
-    if (!window.confirm('¿Está seguro de concluir esta sesión operativa?')) return;
+  const handleConfirmFinishSession = async () => {
+    if (!selectedSessionId || !activeSession) return;
     setIsActionLoading(true);
+    setError(null);
     try {
-      await workshopService.updateSessionStatus(selectedSessionId, 'FINALIZADA');
-      await handleRevokeQR();
+      if (qrData) {
+        await workshopService.revokeQR(selectedSessionId).catch(() => {});
+        setQrData(null);
+        setSecondsRemaining(0);
+      }
+      // Only transition PROGRAMADA -> EJECUTADA (EJECUTADA -> VALIDADA is performed by Coordinator)
+      if (activeSession.estado === 'PROGRAMADA') {
+        await workshopService.updateSessionStatus(selectedSessionId, 'EJECUTADA');
+      }
+      setIsFinishModalOpen(false);
       await loadSessions();
-    } catch (err: any) {
-      setError(err?.message || 'Error al finalizar la sesión');
+      await syncQRAndMonitoreo(selectedSessionId);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al actualizar estado de la sesión');
+      setIsFinishModalOpen(false);
     } finally {
       setIsActionLoading(false);
     }
@@ -174,6 +195,10 @@ export const TrainerQRPanel: React.FC = () => {
 
   const attendeesCount = monitoreo?.total_asistentes ?? (monitoreo?.asistencias?.length ?? 0);
   const enrolledCount = monitoreo?.total_inscritos ?? (activeSession?.totalInscritos ?? 0);
+  const liveAsistencias = monitoreo?.asistencias || [];
+
+  const isSessionClosed =
+    activeSession?.estado === 'VALIDADA' || activeSession?.estado === 'CANCELADA';
 
   return (
     <div className={styles.container}>
@@ -188,7 +213,13 @@ export const TrainerQRPanel: React.FC = () => {
           <Button
             variant="outline"
             icon={<ClipboardList size={16} />}
-            onClick={() => navigate('/trainer/attendances')}
+            onClick={() =>
+              navigate(
+                `/trainer/attendances${
+                  selectedSessionId ? `?sesionId=${encodeURIComponent(selectedSessionId)}` : ''
+                }`
+              )
+            }
           >
             Ver Asistencias ({attendeesCount})
           </Button>
@@ -216,9 +247,25 @@ export const TrainerQRPanel: React.FC = () => {
 
       {/* Session selector if multiple exist */}
       {sessions.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#FFFFFF', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Seleccionar Sesión:</span>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            background: '#FFFFFF',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            border: '1px solid #E2E8F0',
+          }}
+        >
+          <label
+            htmlFor="trainer-session-select"
+            style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}
+          >
+            Seleccionar Sesión:
+          </label>
           <select
+            id="trainer-session-select"
             value={selectedSessionId}
             onChange={e => setSelectedSessionId(e.target.value)}
             style={{
@@ -232,7 +279,7 @@ export const TrainerQRPanel: React.FC = () => {
           >
             {sessions.map(s => (
               <option key={s.id} value={s.id}>
-                {s.tallerNombre} — {s.sedeNombre} ({s.fecha})
+                {s.tallerNombre} — {s.sedeNombre} ({s.fecha} • {s.estado})
               </option>
             ))}
           </select>
@@ -251,8 +298,10 @@ export const TrainerQRPanel: React.FC = () => {
                     variant={
                       qrData
                         ? 'warning'
-                        : activeSession.estado === 'FINALIZADA' || activeSession.estado === 'VALIDADA'
+                        : activeSession.estado === 'VALIDADA'
                         ? 'success'
+                        : activeSession.estado === 'CANCELADA'
+                        ? 'danger'
                         : 'primary'
                     }
                     withDot
@@ -275,7 +324,9 @@ export const TrainerQRPanel: React.FC = () => {
                   <MapPin size={18} className={styles.detailIcon} />
                   <div className={styles.detailText}>
                     <span className={styles.detailTitle}>Sede Georreferenciada</span>
-                    <span className={styles.detailValue}>{activeSession.sedeNombre}</span>
+                    <span className={styles.detailValue}>
+                      {activeSession.sedeNombre} ({activeSession.modalidad})
+                    </span>
                   </div>
                 </div>
 
@@ -300,50 +351,115 @@ export const TrainerQRPanel: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Live check-ins preview from /monitoreo */}
+                {liveAsistencias.length > 0 && (
+                  <div
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#475569',
+                        textTransform: 'uppercase',
+                        marginBottom: '6px',
+                      }}
+                    >
+                      Últimos registros en tiempo real
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {liveAsistencias.slice(-4).map(a => (
+                        <div
+                          key={`${a.sesion_id}-${a.persona_id}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '12px',
+                            color: '#1E293B',
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <CheckCircle2 size={13} color="#16A34A" />
+                            Participante #{a.persona_id}
+                          </span>
+                          <span style={{ color: '#64748B', fontSize: '11px' }}>
+                            {a.metodo_registro}
+                            {a.distancia_metros !== undefined
+                              ? ` (${Math.round(a.distancia_metros)} m)`
+                              : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Session operational controls */}
-                <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
-                  {qrData ? (
-                    <>
+                {!isSessionClosed && (
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    {qrData ? (
+                      <>
+                        <Button
+                          variant="danger"
+                          icon={
+                            isActionLoading ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Square size={16} />
+                            )
+                          }
+                          onClick={handleRevokeQR}
+                          disabled={isActionLoading}
+                          style={{ flex: 1 }}
+                        >
+                          Revocar Código QR
+                        </Button>
+                        <Button
+                          variant="outline"
+                          icon={<RotateCw size={15} />}
+                          onClick={handleGenerateQR}
+                          disabled={isActionLoading}
+                          title="Rotar / Renovar token QR"
+                        >
+                          Rotar
+                        </Button>
+                      </>
+                    ) : (
                       <Button
-                        variant="danger"
-                        icon={isActionLoading ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} />}
-                        onClick={handleRevokeQR}
-                        disabled={isActionLoading}
+                        variant="primary"
+                        icon={
+                          isActionLoading ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Play size={16} />
+                          )
+                        }
+                        onClick={handleGenerateQR}
+                        disabled={isActionLoading || activeSession.modalidad !== 'PRESENCIAL'}
                         style={{ flex: 1 }}
                       >
-                        Revocar Código QR
+                        Generar Código QR en Servidor
                       </Button>
-                      <Button
-                        variant="outline"
-                        icon={<RotateCw size={15} />}
-                        onClick={handleGenerateQR}
-                        disabled={isActionLoading}
-                        title="Rotar / Renovar token QR"
-                      >
-                        Rotar
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      icon={isActionLoading ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                      onClick={handleGenerateQR}
-                      disabled={isActionLoading}
-                      style={{ flex: 1 }}
-                    >
-                      Generar Código QR en Servidor
-                    </Button>
-                  )}
+                    )}
 
-                  <Button
-                    variant="outline"
-                    icon={<Square size={16} />}
-                    onClick={handleFinishSession}
-                    disabled={isActionLoading}
-                  >
-                    Cerrar Sesión
-                  </Button>
-                </div>
+                    <Button
+                      variant="outline"
+                      icon={<CheckCircle2 size={16} />}
+                      onClick={() => setIsFinishModalOpen(true)}
+                      disabled={isActionLoading}
+                    >
+                      {activeSession.estado === 'PROGRAMADA'
+                        ? 'Registrar Ejecución'
+                        : 'Cerrar QR de Sesión'}
+                    </Button>
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -360,9 +476,17 @@ export const TrainerQRPanel: React.FC = () => {
                 alignItems: 'flex-start',
               }}
             >
-              <AlertTriangle size={18} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <AlertTriangle
+                size={18}
+                color="#D97706"
+                style={{ flexShrink: 0, marginTop: '2px' }}
+              />
               <div>
-                <strong>Interoperabilidad con la App Flutter</strong>: El código QR renderizado a la derecha contiene el token JWT emitido por el backend Go (`POST /api/v1/sesiones/{'{id}'}/qr`). La aplicación Flutter verificará la firma criptográfica y enviará las coordenadas GPS para validar la geocerca de 80 metros.
+                <strong>Interoperabilidad con la App Flutter</strong>: El código QR renderizado a
+                la derecha contiene el token JWT emitido por el backend Go (
+                <code>POST /api/v1/sesiones/{'{id}'}/qr</code>). La aplicación Flutter verificará
+                la firma criptográfica y enviará las coordenadas GPS para validar la geocerca de 80
+                metros.
               </div>
             </div>
           </div>
@@ -379,7 +503,6 @@ export const TrainerQRPanel: React.FC = () => {
                     </div>
 
                     <div className={styles.qrContainer}>
-                      {/* REAL QR Code render containing the backend JWT token */}
                       <QRCodeSVG
                         value={qrData.qr_token}
                         size={220}
@@ -403,20 +526,34 @@ export const TrainerQRPanel: React.FC = () => {
                     <QrCode size={56} color="#CBD5E1" />
                     <div>
                       <div style={{ fontWeight: 600, color: '#1E293B' }}>
-                        {qrData && secondsRemaining <= 0 ? 'Código QR Expirado' : 'Código QR No Generado'}
+                        {isSessionClosed
+                          ? `Sesión ${activeSession.estado}`
+                          : qrData && secondsRemaining <= 0
+                          ? 'Código QR Expirado'
+                          : 'Código QR No Generado'}
                       </div>
                       <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
-                        Haga clic en "Generar Código QR" para solicitar al backend Go un nuevo token dinámico de asistencia.
+                        {isSessionClosed
+                          ? 'Esta sesión ya fue cerrada y no admite nuevos códigos QR.'
+                          : 'Haga clic en "Generar Código QR" para solicitar al backend Go un nuevo token dinámico de asistencia.'}
                       </p>
                     </div>
-                    <Button
-                      variant="primary"
-                      icon={isActionLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                      onClick={handleGenerateQR}
-                      disabled={isActionLoading}
-                    >
-                      {isActionLoading ? 'Generando...' : 'Generar Código QR'}
-                    </Button>
+                    {!isSessionClosed && (
+                      <Button
+                        variant="primary"
+                        icon={
+                          isActionLoading ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Play size={14} />
+                          )
+                        }
+                        onClick={handleGenerateQR}
+                        disabled={isActionLoading || activeSession.modalidad !== 'PRESENCIAL'}
+                      >
+                        {isActionLoading ? 'Generando...' : 'Generar Código QR'}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -426,10 +563,61 @@ export const TrainerQRPanel: React.FC = () => {
       ) : (
         <Card>
           <div style={{ textAlign: 'center', padding: '32px' }}>
-            <p>{isLoading ? 'Cargando sesiones...' : 'No hay sesiones disponibles para este capacitador.'}</p>
+            <p>
+              {isLoading
+                ? 'Cargando sesiones...'
+                : 'No hay sesiones disponibles para este capacitador.'}
+            </p>
           </div>
         </Card>
       )}
+
+      {/* Finish / Mark Executed Confirmation Modal */}
+      <Modal
+        isOpen={isFinishModalOpen}
+        onClose={() => setIsFinishModalOpen(false)}
+        title={
+          activeSession?.estado === 'PROGRAMADA'
+            ? 'Confirmar Ejecución de Sesión'
+            : 'Cerrar Recepción QR de Sesión'
+        }
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsFinishModalOpen(false)}
+              disabled={isActionLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleConfirmFinishSession}
+              disabled={isActionLoading}
+            >
+              {isActionLoading ? 'Procesando...' : 'Confirmar'}
+            </Button>
+          </>
+        }
+      >
+        <p style={{ fontSize: '13px', color: '#334155' }}>
+          {activeSession?.estado === 'PROGRAMADA' ? (
+            <>
+              Se revocará cualquier código QR activo y la sesión{' '}
+              <strong>{activeSession?.tallerNombre}</strong> pasará a estado{' '}
+              <strong>EJECUTADA</strong> lista para validación del Coordinador.
+            </>
+          ) : (
+            <>
+              Se revocará el código QR activo de la sesión{' '}
+              <strong>{activeSession?.tallerNombre}</strong>. La sesión ya se encuentra en estado{' '}
+              <strong>EJECUTADA</strong>.
+            </>
+          )}
+        </p>
+      </Modal>
     </div>
   );
 };
