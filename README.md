@@ -36,24 +36,24 @@
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h3>⚙️ Backend REST (<code>backend/</code>)</h3>
+      <h3>Backend REST (<code>backend/</code>)</h3>
       <p>API REST construida en <strong>Go 1.27</strong> con arquitectura modular, autenticación JWT (acceso + refresh), <strong>RBAC fail-closed</strong> por permiso granular, generación/revocación de tokens <strong>QR dinámicos</strong> en caché aislada y cálculo geodésico <strong>Haversine (80 m)</strong> sin almacenar coordenadas del ciudadano.</p>
       <p><a href="./backend">Explorar <code>backend/</code> →</a></p>
     </td>
     <td width="50%" valign="top">
-      <h3>🖥️ Portal Web Administrativo (<code>web/</code>)</h3>
+      <h3>Portal Web Administrativo (<code>web/</code>)</h3>
       <p>Aplicación SPA en <strong>React 18, TypeScript, Vite y CSS Modules</strong> orientada a <strong>Coordinadores</strong> y <strong>Capacitadores</strong>: catálogo de sedes georreferenciadas, metas anuales MINAM, programación y validación de talleres, emisión de QR dinámico en vivo, calificaciones, conciliación y exportación CSV sanitizada.</p>
       <p><a href="./web">Explorar <code>web/</code> →</a></p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h3>📱 App Móvil Ciudadana (<code>mobile/</code>)</h3>
+      <h3>App Móvil Ciudadana (<code>mobile/</code>)</h3>
       <p>Aplicación <strong>Flutter</strong> para participantes y promotores ambientales (<code>PAC</code>, <code>PAJ</code>, <code>COMERCIANTE</code>, <code>RECICLADOR</code>) con registro ciudadano LPDP (mayoría de edad <code>>= 18</code>), inscripción a talleres, escáner <strong>QR + GPS</strong> y consulta de historial personal.</p>
       <p><a href="./mobile">Explorar <code>mobile/</code> →</a></p>
     </td>
     <td width="50%" valign="top">
-      <h3>🗄️ Base de Datos e Infra (<code>database/</code> + Docker)</h3>
+      <h3>Base de Datos e Infra (<code>database/</code> + Docker)</h3>
       <p>Esquema relacional <strong>PostgreSQL 18</strong> consolidado en <code>AmbiData.sql</code> (12 tablas, funciones almacenadas PL/pgSQL, control de solapamiento horario y derechos <strong>ARCO</strong>) desplegado en contenedores con <strong>Nginx</strong> y <strong>Cloudflare Tunnel</strong>.</p>
       <p><a href="./database">Explorar <code>database/</code></a> · <a href="./docker-compose.yml">Ver <code>docker-compose.yml</code> →</a></p>
     </td>
@@ -105,7 +105,7 @@ curl https://educca.cocorium.online/health
 ```
 
 <details>
-<summary><b>🐳 Detalles de contenedores, puertos y variables de despliegue</b></summary>
+<summary><b>Detalles de contenedores, puertos y variables de despliegue</b></summary>
 <br />
 
 | Contenedor | Imagen / Build | Puerto Host | Rol en la arquitectura |
@@ -135,7 +135,7 @@ make docker-reset
 Despliega el módulo en el que vayas a trabajar:
 
 <details>
-<summary><b>⚙️ Backend Go + PostgreSQL (Local)</b></summary>
+<summary><b>Backend Go + PostgreSQL (Local)</b></summary>
 <br />
 
 **Requisitos:** Go `1.27+`, PostgreSQL `18+` (`psql`), `make`.
@@ -160,7 +160,7 @@ Variables clave en `backend/.env`:
 </details>
 
 <details>
-<summary><b>🖥️ Frontend Web — React 18 + TypeScript + Vite</b></summary>
+<summary><b>Frontend Web — React 18 + TypeScript + Vite</b></summary>
 <br />
 
 **Requisitos:** Node.js `20+` y `npm`.
@@ -188,7 +188,7 @@ VITE_DEFAULT_DATA_MODE=api
 </details>
 
 <details>
-<summary><b>📱 App Móvil — Flutter (Android / iOS)</b></summary>
+<summary><b>App Móvil — Flutter (Android / iOS)</b></summary>
 <br />
 
 **Requisitos:** Flutter SDK estable (`3.x+`).
@@ -210,7 +210,7 @@ flutter run
 ## Flujo Técnico: QR Dinámico, Geocerca 80 m y LPDP
 
 <details>
-<summary><b>📡 Ver diagrama de secuencia e interoperabilidad Web ↔ Go ↔ Flutter</b></summary>
+<summary><b>Ver diagrama de secuencia e interoperabilidad Web ↔ Go ↔ Flutter</b></summary>
 <br />
 
 ```mermaid
@@ -254,7 +254,7 @@ sequenceDiagram
 > * **Contraseña:** `password123`
 
 <details>
-<summary><b>🔐 Ver matriz de roles y responsabilidades del sistema</b></summary>
+<summary><b>Ver matriz de roles y responsabilidades del sistema</b></summary>
 <br />
 
 | Rol (`rol.nombre`) | Plataforma | Responsabilidades y alcance RBAC |
@@ -274,7 +274,7 @@ sequenceDiagram
 Base URL en producción/pruebas: `https://educca.cocorium.online/api/v1`
 
 <details>
-<summary><b>🔑 Salud y Autenticación (Público / Bearer JWT)</b></summary>
+<summary><b>Salud y Autenticación (Público / Bearer JWT)</b></summary>
 <br />
 
 | Método | Endpoint | Descripción |
@@ -288,7 +288,7 @@ Base URL en producción/pruebas: `https://educca.cocorium.online/api/v1`
 </details>
 
 <details>
-<summary><b>👥 Personas, RBAC y Derechos ARCO</b></summary>
+<summary><b>Personas, RBAC y Derechos ARCO</b></summary>
 <br />
 
 | Método | Endpoint | Permiso requerido |
@@ -305,7 +305,7 @@ Base URL en producción/pruebas: `https://educca.cocorium.online/api/v1`
 </details>
 
 <details>
-<summary><b>📍 Sedes, Metas Anuales, Promotores y Sesiones</b></summary>
+<summary><b>Sedes, Metas Anuales, Promotores y Sesiones</b></summary>
 <br />
 
 | Método | Endpoint | Notas |
@@ -319,7 +319,7 @@ Base URL en producción/pruebas: `https://educca.cocorium.online/api/v1`
 </details>
 
 <details>
-<summary><b>📲 QR Dinámico, Inscripciones, Asistencias, Evidencias y Reportes</b></summary>
+<summary><b>QR Dinámico, Inscripciones, Asistencias, Evidencias y Reportes</b></summary>
 <br />
 
 | Método | Endpoint | Notas |
@@ -340,7 +340,7 @@ Base URL en producción/pruebas: `https://educca.cocorium.online/api/v1`
 ## Estructura y Comandos
 
 <details>
-<summary><b>🗂️ Estructura del repositorio y comandos del <code>Makefile</code></b></summary>
+<summary><b>Estructura del repositorio y comandos del <code>Makefile</code></b></summary>
 <br />
 
 ```text
