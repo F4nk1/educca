@@ -3,6 +3,7 @@ import { Venue } from '../../models/types';
 export const MOCK_VENUES: Venue[] = [
   {
     id: 'ven-1',
+    numericId: 1,
     nombre: 'Mercado Central San Pedro',
     direccion: 'Calle Cascaparo s/n, Centro Histórico, Cusco',
     tipo: 'MERCADO',
@@ -14,6 +15,7 @@ export const MOCK_VENUES: Venue[] = [
   },
   {
     id: 'ven-2',
+    numericId: 2,
     nombre: 'Mercado Mayorista Vinocanchón',
     direccion: 'Av. Huayna Cápac s/n, San Jerónimo, Cusco',
     tipo: 'MERCADO',
@@ -25,6 +27,7 @@ export const MOCK_VENUES: Venue[] = [
   },
   {
     id: 'ven-3',
+    numericId: 3,
     nombre: 'Centro de Acopio y Valorización Huancaro',
     direccion: 'Recinto Ferial de Huancaro, Santiago, Cusco',
     tipo: 'CENTRO_ACOPIO',
@@ -36,6 +39,7 @@ export const MOCK_VENUES: Venue[] = [
   },
   {
     id: 'ven-4',
+    numericId: 4,
     nombre: 'Mercado Zonal de Ttio',
     direccion: 'Urb. Ttio s/n, Wanchaq, Cusco',
     tipo: 'MERCADO',
@@ -47,6 +51,7 @@ export const MOCK_VENUES: Venue[] = [
   },
   {
     id: 'ven-5',
+    numericId: 5,
     nombre: 'Planta de Segregación San Sebastián',
     direccion: 'Zona Industrial Larapa, San Sebastián, Cusco',
     tipo: 'CENTRO_ACOPIO',
@@ -58,13 +63,14 @@ export const MOCK_VENUES: Venue[] = [
   },
   {
     id: 'ven-6',
+    numericId: 6,
     nombre: 'Auditorio Palacio Municipal de Cusco',
     direccion: 'Plaza Regocijo s/n, Centro Histórico, Cusco',
-    tipo: 'INSTITUCION',
+    tipo: 'INSTITUCION_PUBLICA',
     latitud: -13.5168,
     longitud: -71.9788,
     radioMetros: 80,
-    estado: 'INACTIVO',
+    estado: 'ACTIVO',
     talleresActivosCount: 0,
   },
 ];
