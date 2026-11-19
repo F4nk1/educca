@@ -37,9 +37,17 @@ export const Login: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await login(identificador.trim(), password);
-      // Navigation is determined by current user role
-      navigate('/coordinator');
+      const loggedUser = await login(identificador.trim(), password);
+      const isCoordinator =
+        loggedUser.rol === 'coordinador' ||
+        loggedUser.rol === 'admin' ||
+        (loggedUser.roles && (loggedUser.roles.includes('admin') || loggedUser.roles.includes('coordinador')));
+
+      if (isCoordinator) {
+        navigate('/coordinator');
+      } else {
+        navigate('/trainer/qr');
+      }
     } catch (err: any) {
       setError(err?.message || 'Error al iniciar sesión. Verifique sus credenciales.');
     } finally {

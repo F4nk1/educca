@@ -37,13 +37,13 @@ export const AppRouter: React.FC = () => {
         {/* Protected Application Routes */}
         <Route element={user ? <Layout /> : <Navigate to="/login" replace />}>
           {/* Coordinator Routes */}
-          <Route path="/coordinator" element={<CoordinatorHome />} />
-          <Route path="/coordinator/venues" element={<VenuesList />} />
-          <Route path="/coordinator/workshops" element={<WorkshopsList />} />
-          <Route path="/coordinator/workshops/create" element={<WorkshopCreate />} />
-          <Route path="/coordinator/sessions" element={<SessionsList />} />
-          <Route path="/coordinator/attendances" element={<GlobalAttendances />} />
-          <Route path="/coordinator/users" element={<UsersList />} />
+          <Route path="/coordinator" element={isCoordinator ? <CoordinatorHome /> : <Navigate to="/trainer/qr" replace />} />
+          <Route path="/coordinator/venues" element={isCoordinator ? <VenuesList /> : <Navigate to="/trainer/qr" replace />} />
+          <Route path="/coordinator/workshops" element={isCoordinator ? <WorkshopsList /> : <Navigate to="/trainer/qr" replace />} />
+          <Route path="/coordinator/workshops/create" element={isCoordinator ? <WorkshopCreate /> : <Navigate to="/trainer/qr" replace />} />
+          <Route path="/coordinator/sessions" element={isCoordinator ? <SessionsList /> : <Navigate to="/trainer/qr" replace />} />
+          <Route path="/coordinator/attendances" element={isCoordinator ? <GlobalAttendances /> : <Navigate to="/trainer/qr" replace />} />
+          <Route path="/coordinator/users" element={isCoordinator ? <UsersList /> : <Navigate to="/trainer/qr" replace />} />
 
           {/* Trainer Routes */}
           <Route path="/trainer/qr" element={<TrainerQRPanel />} />

@@ -8,7 +8,7 @@ interface AuthContextType {
   role: UserRole;
   isDemoMode: boolean;
   isLoading: boolean;
-  login: (identificador: string, password?: string, demoRole?: UserRole) => Promise<boolean>;
+  login: (identificador: string, password?: string, demoRole?: UserRole) => Promise<User>;
   logout: () => void;
   switchRole: (role: UserRole) => void;
   toggleDemoMode: (enabled: boolean) => void;
@@ -38,11 +38,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .finally(() => setIsLoading(false));
   }, [logout]);
 
-  const login = async (identificador: string, password?: string, demoRole?: UserRole): Promise<boolean> => {
+  const login = async (identificador: string, password?: string, demoRole?: UserRole): Promise<User> => {
     try {
       const loggedUser = await authService.login(identificador, password, demoRole);
       setUser(loggedUser);
-      return true;
+      return loggedUser;
     } catch (err) {
       throw err;
     }
