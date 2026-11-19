@@ -17,8 +17,8 @@ cp .env.example .env
 Variables disponibles:
 
 ```env
-# URL base de la API REST en Go (puerto por defecto 8080)
-VITE_API_BASE_URL=http://localhost:8080/api/v1
+# URL base de la API REST en Go (subdominio de pruebas o http://localhost:8080/api/v1 en local)
+VITE_API_BASE_URL=https://educca.cocorium.online/api/v1
 
 # Modo de datos inicial: "api" (backend Go real) o "demo" (datos locales simulados)
 VITE_DEFAULT_DATA_MODE=api

@@ -18,6 +18,12 @@ backend/.env.*
 *.test
 coverage.*
 
+# Frontend Web artifacts
+node_modules/
+web/node_modules/
+dist/
+web/dist/
+
 # IDEs and OS files
 .vscode/
 .idea/

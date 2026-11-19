@@ -66,7 +66,7 @@ func NewConfiguration() *Config {
 		}
 	}
 
-	defaultOrigins := "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+	defaultOrigins := "https://educca.cocorium.online,http://educca.cocorium.online,http://localhost:3000,http://localhost:5173,http://localhost:8080"
 
 	return &Config{
 		Server: Server{

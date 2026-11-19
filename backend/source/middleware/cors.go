@@ -6,6 +6,8 @@ import (
 )
 
 var defaultAllowedOrigins = []string{
+	"https://educca.cocorium.online",
+	"http://educca.cocorium.online",
 	"http://localhost:3000",
 	"http://localhost:5173",
 	"http://localhost:8080",

@@ -78,7 +78,7 @@ class _ServerConfigDialogState extends State<ServerConfigDialog> {
               controller: _controller,
               decoration: const InputDecoration(
                 labelText: 'URL Base de la API',
-                hintText: 'http://10.0.2.2:3000/api/v1',
+                hintText: 'https://educca.cocorium.online/api/v1',
                 prefixIcon: Icon(Icons.link),
               ),
               keyboardType: TextInputType.url,
@@ -121,15 +121,15 @@ class _ServerConfigDialogState extends State<ServerConfigDialog> {
               runSpacing: 4,
               children: [
                 ActionChip(
-                  label: const Text('Emulador (10.0.2.2)', style: TextStyle(fontSize: 11)),
+                  label: const Text('Cloud (educca.cocorium.online)', style: TextStyle(fontSize: 11)),
                   onPressed: () {
-                    _controller.text = 'http://10.0.2.2:3000/api/v1';
+                    _controller.text = 'https://educca.cocorium.online/api/v1';
                   },
                 ),
                 ActionChip(
-                  label: const Text('Localhost (5000)', style: TextStyle(fontSize: 11)),
+                  label: const Text('Emulador (10.0.2.2:8080)', style: TextStyle(fontSize: 11)),
                   onPressed: () {
-                    _controller.text = 'http://10.0.2.2:5000/api/v1';
+                    _controller.text = 'http://10.0.2.2:8080/api/v1';
                   },
                 ),
                 ActionChip(
